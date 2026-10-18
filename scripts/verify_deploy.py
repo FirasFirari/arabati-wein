@@ -45,9 +45,12 @@ def main() -> None:
     check("index.html 200", r.status_code == 200, str(r.status_code))
     html = r.text
     check("watch form present", bool(re.search(r"name=['\"]watch['\"]", html)) and "form-name" in html)
-    # Netlify's pretty-URL processing may rewrite href="/x.html" to href="/x"
+    # Netlify's pretty-URL processing rewrites href="/x.html" to href='/x'
+    # (single quotes, no extension), so accept either quote style, an optional
+    # host, and an optional .html or trailing slash.
+    link = re.compile(r"""href=['"](?:https?://[^/'"]+)?/(support|privacy|stats)(?:\.html|/)?['"]""")
     check("footer links to support/privacy/stats",
-          all(re.search(rf'href="(https?://[^/"]+)?/{x}(\.html|/)?"', html) for x in ("support", "privacy", "stats")))
+          {m.group(1) for m in link.finditer(html)} >= {"support", "privacy", "stats"})
     check("meta description present", 'name="description"' in html)
 
     for name in ("core.bin", "detail.bin"):
