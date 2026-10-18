@@ -47,7 +47,7 @@ def main() -> None:
     check("watch form present", bool(re.search(r"name=['\"]watch['\"]", html)) and "form-name" in html)
     # Netlify's pretty-URL processing may rewrite href="/x.html" to href="/x"
     check("footer links to support/privacy/stats",
-          all(re.search(rf'href="/{x}(\.html)?"', html) for x in ("support", "privacy", "stats")))
+          all(re.search(rf'href="/{x}(\.html|/)?"', html) for x in ("support", "privacy", "stats")))
     check("meta description present", 'name="description"' in html)
 
     for name in ("core.bin", "detail.bin"):
