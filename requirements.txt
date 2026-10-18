@@ -1,0 +1,7 @@
+anthropic>=1.0
+telethon>=1.36
+PyYAML>=6.0
+requests>=2.31   # Netlify deploy / watch fetch, Resend email
+openai>=1.0      # fallback provider when Claude is unavailable (carhunt/fallback.py)
+qrcode>=7.4      # QR login for Telegram (carhunt/tg_login.py)
+pillow>=10.0     # image handling for qrcode

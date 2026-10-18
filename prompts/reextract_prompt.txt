@@ -1,0 +1,72 @@
+You are clearing part of the Car Hunt post-analysis backlog. This is real production work: your output is written into a public registry that families use to find cars lost in the Sudan war.
+
+INSTRUCTION SET: C:\Users\User\Desktop\Car Hunt\prompts\analyst_system_prompt.txt
+Read it FIRST and follow it exactly — JSON shape, body-type rules, alias table, scoring guide.
+
+OVERRIDE: ignore any sentence in it about "REFERENCE" photos. These posts are text-only; there are no images. The search is for an IDENTIFIER (a chassis or plate number written in the text), never a resemblance. A white 2015 Corolla looks like every other one — only a number counts.
+
+For each assigned batch file `batch_NNN.json` (a JSON array of posts with `id`, `source`, `url`, `text`), write `C:\Users\User\Desktop\Car Hunt\data\local_verdicts\verdicts_NNN.json`: a JSON array of {"id": <post id>, "verdict": {...}} covering EVERY post in that batch, in input order.
+
+Work through your batches IN ORDER, finishing and writing each file before starting the next.
+
+HARD RULES:
+- Analyze every post YOURSELF. Do NOT write a script and do NOT use regex to generate verdicts. A regex pass produces mechanical scores and bad vehicle segmentation, and it mangles Arabic-Indic digits. The judgement must be yours.
+- NEVER invent a chassis/VIN, plate, phone or price. Every identifier you emit must appear literally in that post's text. If absent, use null.
+- Include EVERY distinct vehicle. A numbered كشف/حصر list may hold 250+ vehicles; each line is its own vehicle object. Do NOT truncate or summarise — completeness is the point.
+- Keep chassis/plate EXACTLY as written, including partial fragments and Arabic-Indic numerals. Do not convert ٤ to 4. If a post writes the same number twice (Latin and Arabic-Indic), preserve both as written.
+- If the same vehicle list is pasted twice in one post (a "See less" preview repeat), count those vehicles ONCE.
+- make/model in canonical English; preserve the post's original Arabic wording in "description". If a nickname is ambiguous, leave make/model null and keep the Arabic word — do not guess.
+- UTF-8, real Arabic characters, valid JSON, no markdown fences.
+- COMPLETENESS IS VERIFIED MECHANICALLY. Every post id must appear in its output file or the batch is rejected. If you cannot finish, write what you completed and state plainly which ids are missing. NEVER report success for work you did not do.
+- Stay in your own lane: do not read or rewrite another agent's output files.
+
+Reply with: per batch, the post count and vehicle count, plus any ids you could not complete.
+
+WHY THESE POSTS SPECIFICALLY:
+Each of these was already analysed once and its vehicle list was NOT fully read
+— a screening tier that never extracts, an offline heuristic with no model, or
+a deep pass that ran out of output tokens partway through a huge list. Some of
+these posts carry over a thousand chassis numbers and only a handful were
+recorded. Your job is to read them COMPLETELY. Completeness is the entire point
+of this pass: a post with 400 numbered lines must produce 400 vehicle objects,
+not a representative sample. Do not summarise, do not stop early, do not write
+"and so on". If a post is too large to finish in one file write, write what you
+have completed and state plainly which post ids are incomplete.
+
+## PUT ONLY THE IDENTIFIER IN THE IDENTIFIER FIELD
+
+`chassis` and `plate` must contain the identifier and nothing else. No
+parentheses, no caveats, no comparisons, no "from text", no "does not match".
+Every observation, doubt, source note and comparison belongs in `description`.
+
+This is not a style preference. Identifiers are normalised by stripping
+non-alphanumeric characters, so commentary is folded into the value. An agent
+wrote:
+
+    chassis: "5223949 (from text; does not match target VIN fragment {{CHASSIS_TAIL}})"
+
+which normalised to ...FRAGMENT{{CHASSIS_TAIL}} and registered as a MATCH on {{CHASSIS_TAIL}} —
+a phantom hit on the exact number this project exists to find. The mirror of
+that failure is worse: a REAL match arriving with prose appended would have a
+normalised value no exact-match query can find, and the car would be missed.
+
+If you are unsure of a character, put the legible characters in the field and
+explain the uncertainty in `description`.
+
+## DO NOT TRANSCRIBE OWNER NAMES OR ADDRESSES FROM OFFICIAL DOCUMENTS
+
+Photographed vehicle-registration cards (رخصة مركبة / استمارة) carry the
+registered owner's full name, home address and personal phone. Record the
+VEHICLE identifiers from them — VIN, plate, make, model, year — and write
+`from a vehicle registration document photo` in `description`. Do NOT copy the
+owner's name, address, or the phone printed on the card.
+
+Why: this registry is published on a public web page. A poster who writes
+"call me on 09xx" has chosen to be contactable. The owner of a registration
+card that a stranger photographed and posted has not, and tying a named person
+to a home address and a vehicle on an indexed page — during a war — can put
+them in danger. A phone number offered in the post body is fine; one lifted off
+a government document is not.
+
+The exception is the phone number the POSTER gives for contact about the
+vehicle. That is the contact field's purpose and it stays.

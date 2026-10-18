@@ -1,0 +1,92 @@
+You are clearing part of the Car Hunt post-analysis backlog. This is real production work: your output is written into a public registry that families use to find cars lost in the Sudan war.
+
+INSTRUCTION SET: C:\Users\User\Desktop\Car Hunt\prompts\analyst_system_prompt.txt
+Read it FIRST and follow it exactly — JSON shape, body-type rules, alias table, scoring guide.
+
+OVERRIDE: ignore any sentence in it about "REFERENCE" photos. You will see no images. The search is for an IDENTIFIER (a chassis or plate number), never a resemblance. A white 2015 Corolla looks like every other one — only a number counts.
+
+## THE `ocr_text` FIELD — READ THIS BEFORE YOU START
+
+Many posts now carry an extra field, `ocr_text`: a machine transcription by
+Google Cloud Vision of what is physically printed or stamped in that post's
+PHOTOS — compliance plates, chassis stampings, numbers chalked on a
+windscreen, screenshots of كشف lists. Every photo in the corpus has been run
+through it.
+
+TREAT `ocr_text` AS PART OF THE POST. An identifier that appears only there is
+a real identifier: it is stamped on the car. These are the highest-value finds
+in the whole project, because a chassis number on a door plate appears in no
+post text anywhere and is exactly what a family can search a police yard by.
+
+But it is a RAW MACHINE TRANSCRIPTION, so:
+- Copy identifiers from it EXACTLY as written. Never repair, complete or
+  reorder a number that looks wrong. A wrong transcription costs more than a
+  missing one.
+- Compliance plates are full of numbers that are NOT chassis numbers: gross
+  vehicle weights in kg, axle loads, production dates (2016.02), model codes
+  (TRH203L-REMDKV), engine codes (2TR-FE 2694), plant codes, C/TR and A/TM
+  lines. Do not emit these as `chassis` or `plate`. The chassis is the one
+  labelled الرقم المميز, VIN, رقم الشاسي, or standing alone as a 17-character
+  alphanumeric run.
+- A real 17-character VIN never contains the letters I, O or Q. If you see
+  them in a VIN-shaped run, that is an OCR slip for 1 and 0 — still copy what
+  is written, and say so in `description`.
+- OCR of one photo may describe a DIFFERENT vehicle from the post text. If
+  they conflict, emit BOTH as separate vehicles rather than merging them.
+- If `ocr_text` is absent or empty, the post's photos held no legible text.
+  That is a normal result, not a problem to solve.
+
+For each assigned batch file `batch_NNN.json` (a JSON array of posts with `id`, `source`, `url`, `text`, and often `ocr_text`), write `C:\Users\User\Desktop\Car Hunt\data\local_verdicts\verdicts_NNN.json`: a JSON array of {"id": <post id>, "verdict": {...}} covering EVERY post in that batch, in input order.
+
+Work through your batches IN ORDER, finishing and writing each file before starting the next.
+
+HARD RULES:
+- Analyze every post YOURSELF. Do NOT write a script and do NOT use regex to generate verdicts. A regex pass produces mechanical scores and bad vehicle segmentation, and it mangles Arabic-Indic digits. The judgement must be yours.
+- NEVER invent a chassis/VIN, plate, phone or price. Every identifier you emit must appear literally in that post's `text` OR its `ocr_text`. If absent from both, use null. This is verified mechanically after you finish and ungrounded values are nulled, so inventing one wastes the work rather than hiding it.
+- Include EVERY distinct vehicle. A numbered كشف/حصر list may hold 250+ vehicles; each line is its own vehicle object. Do NOT truncate or summarise — completeness is the point.
+- Keep chassis/plate EXACTLY as written, including partial fragments and Arabic-Indic numerals. Do not convert ٤ to 4. If a post writes the same number twice (Latin and Arabic-Indic), preserve both as written.
+- If the same vehicle list is pasted twice in one post (a "See less" preview repeat), count those vehicles ONCE.
+- make/model in canonical English; preserve the post's original Arabic wording in "description". If a nickname is ambiguous, leave make/model null and keep the Arabic word — do not guess.
+- UTF-8, real Arabic characters, valid JSON, no markdown fences.
+- COMPLETENESS IS VERIFIED MECHANICALLY. Every post id must appear in its output file or the batch is rejected. If you cannot finish, write what you completed and state plainly which ids are missing. NEVER report success for work you did not do.
+- Stay in your own lane: do not read or rewrite another agent's output files.
+
+Reply with: per batch, the post count and vehicle count, plus any ids you could not complete.
+
+## PUT ONLY THE IDENTIFIER IN THE IDENTIFIER FIELD
+
+`chassis` and `plate` must contain the identifier and nothing else. No
+parentheses, no caveats, no comparisons, no "from text", no "does not match".
+Every observation, doubt, source note and comparison belongs in `description`.
+
+This is not a style preference. Identifiers are normalised by stripping
+non-alphanumeric characters, so commentary is folded into the value. An agent
+wrote:
+
+    chassis: "5223949 (from text; does not match target VIN fragment {{CHASSIS_TAIL}})"
+
+which normalised to ...FRAGMENT{{CHASSIS_TAIL}} and registered as a MATCH on {{CHASSIS_TAIL}} —
+a phantom hit on the exact number this project exists to find. The mirror of
+that failure is worse: a REAL match arriving with prose appended would have a
+normalised value no exact-match query can find, and the car would be missed.
+
+If you are unsure of a character, put the legible characters in the field and
+explain the uncertainty in `description`.
+
+## DO NOT TRANSCRIBE OWNER NAMES OR ADDRESSES FROM OFFICIAL DOCUMENTS
+
+Photographed vehicle-registration cards (رخصة مركبة / استمارة) carry the
+registered owner's full name, home address and personal phone. Record the
+VEHICLE identifiers from them — VIN, plate, make, model, year — and write
+`from a vehicle registration document photo` in `description`. Do NOT copy the
+owner's name, address, or the phone printed on the card.
+
+Why: this registry is published on a public web page. A poster who writes
+"call me on 09xx" has chosen to be contactable. The owner of a registration
+card that a stranger photographed and posted has not, and tying a named person
+to a home address and a vehicle on an indexed page — during a war — can put
+them in danger. A phone number offered in the post body is fine; one lifted off
+a government document is not.
+
+The exception is the phone number the POSTER gives for contact about the
+vehicle. That is the contact field's purpose and it stays.

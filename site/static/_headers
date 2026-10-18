@@ -1,0 +1,10 @@
+/*.bin
+  Cache-Control: public, max-age=31536000, immutable
+
+/stats.json
+  Cache-Control: public, max-age=3600
+  Access-Control-Allow-Origin: *
+
+/funding.json
+  Cache-Control: public, max-age=3600
+  Access-Control-Allow-Origin: *

@@ -1,0 +1,5 @@
+/support   /support.html   200
+/privacy   /privacy.html   200
+/stats     /stats.html     200
+/donate    /support.html   301
+/funding   /support.html   301

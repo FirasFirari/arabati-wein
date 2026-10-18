@@ -1,0 +1,73 @@
+You are sweeping image posts from two GENERAL NEWS Telegram channels in the Car Hunt project. A cheap "screen tier" model scored these earlier, almost all 0. Your job is to find the minority that actually carry a readable vehicle identifier.
+
+WHAT MATTERS:
+The governing rule is: **the search is for an IDENTIFIER, not a resemblance.** Never judge whether a car looks like a target car. What counts is a CHASSIS/VIN NUMBER or PLATE NUMBER that is genuinely legible in the image.
+
+EXPECTATION-SETTING — read this so you do not over-flag:
+These are general news channels (politics, army, police, floods, sport). MOST of these images are news photographs with no vehicle identifier at all, and a score of 0 is CORRECT for them. Do not mark a post as a miss just because a vehicle appears in the frame. A car in a news photo with no readable plate is NOT a miss. Only these count as a miss:
+  - a legible chassis/VIN number or plate number, or
+  - a photographed كشف/حصر list sheet of chassis/plate numbers, or
+  - a document showing vehicle registration details.
+
+For EACH post in the chunk files assigned to you:
+1. Use the Read tool on EVERY path in `images` to actually look at the picture.
+2. Classify it and transcribe ONLY identifiers you can genuinely read.
+
+For each chunk file `sweep_NNN.json`, write `<OUTDIR>\sweepout_NNN.json`: a JSON array covering EVERY post id in that chunk:
+{
+  "id": <post id>,
+  "image_kind": "photographed_list" | "vehicle_photo" | "document" | "news_photo" | "stock_or_banner" | "screenshot_text" | "other",
+  "legible_identifiers": true/false,
+  "chassis_numbers": [ ...exact, only what you can READ in the image... ],
+  "plates": [ ...exact, only what you can READ... ],
+  "vehicles_visible": <integer>,
+  "screen_tier_was_wrong": true/false,
+  "notes": "one short line"
+}
+
+HARD RULES:
+- NEVER guess or reconstruct a number. A fabricated chassis number is far worse than no number. If blurry or redacted, use an empty array and say so in notes.
+- `chassis_numbers`/`plates` are for what is VISIBLE IN THE PICTURE only — never copy them from the post text.
+- Cover every post id in every chunk assigned to you. Finish one chunk file and write it before starting the next.
+- If you cannot finish, write what you completed and state plainly which ids are missing. Do NOT report success for work you did not do.
+- UTF-8, valid JSON, no markdown fences.
+
+Reply with: chunks completed, posts covered, how many had screen_tier_was_wrong true, and any photographed lists found.
+
+## PUT ONLY THE IDENTIFIER IN THE IDENTIFIER FIELD
+
+`chassis` and `plate` must contain the identifier and nothing else. No
+parentheses, no caveats, no comparisons, no "from text", no "does not match".
+Every observation, doubt, source note and comparison belongs in `description`.
+
+This is not a style preference. Identifiers are normalised by stripping
+non-alphanumeric characters, so commentary is folded into the value. An agent
+wrote:
+
+    chassis: "5223949 (from text; does not match target VIN fragment {{CHASSIS_TAIL}})"
+
+which normalised to ...FRAGMENT{{CHASSIS_TAIL}} and registered as a MATCH on {{CHASSIS_TAIL}} —
+a phantom hit on the exact number this project exists to find. The mirror of
+that failure is worse: a REAL match arriving with prose appended would have a
+normalised value no exact-match query can find, and the car would be missed.
+
+If you are unsure of a character, put the legible characters in the field and
+explain the uncertainty in `description`.
+
+## DO NOT TRANSCRIBE OWNER NAMES OR ADDRESSES FROM OFFICIAL DOCUMENTS
+
+Photographed vehicle-registration cards (رخصة مركبة / استمارة) carry the
+registered owner's full name, home address and personal phone. Record the
+VEHICLE identifiers from them — VIN, plate, make, model, year — and write
+`from a vehicle registration document photo` in `description`. Do NOT copy the
+owner's name, address, or the phone printed on the card.
+
+Why: this registry is published on a public web page. A poster who writes
+"call me on 09xx" has chosen to be contactable. The owner of a registration
+card that a stranger photographed and posted has not, and tying a named person
+to a home address and a vehicle on an indexed page — during a war — can put
+them in danger. A phone number offered in the post body is fine; one lifted off
+a government document is not.
+
+The exception is the phone number the POSTER gives for contact about the
+vehicle. That is the contact field's purpose and it stays.

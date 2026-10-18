@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arabati Wein Statistics</title>
+<meta name="description" content="Live statistics of the Arabati Wein registry of vehicles looted or lost in the Sudan war: distinct chassis numbers, identified vehicles, standing watches, leads relayed and confirmed recoveries.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://mycarsd.online/stats.html">
+<link rel="alternate" type="application/json" href="https://mycarsd.online/stats.json" title="Statistics as JSON">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Arabati Wein Statistics">
+<meta property="og:description" content="What the Sudan lost-vehicle registry holds today, measured from the database and republished with every deploy.">
+<meta property="og:url" content="https://mycarsd.online/stats.html">
+<meta property="og:site_name" content="Arabati Wein">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Sans+Arabic:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root { --bg:#f4f6fa; --paper:#fff; --fg:#182236; --muted:#5b6579; --line:#d6dbe6; --ink:#1d3f8a; --ochre:#b0761a; }
+@media (prefers-color-scheme: dark) { :root { --bg:#111827; --paper:#182135; --fg:#e8ecf4; --muted:#a2acbf; --line:#2b3650; --ink:#8fb0f2; --ochre:#e0ad55; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font: 16px/1.6 "IBM Plex Sans","IBM Plex Sans Arabic",system-ui,sans-serif; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 40px max(16px, env(safe-area-inset-right,0px)) 64px max(16px, env(safe-area-inset-left,0px)); }
+h1 { font-size: 2rem; margin: 0 0 6px; line-height: 1.15; }
+h2 { font-size: 1.3rem; margin: 40px 0 10px; }
+p { max-width: 66ch; }
+a { color: var(--ink); }
+.eyebrow { font: 0.78rem "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+nav a { margin-right: 14px; font-size: .95rem; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 14px; }
+td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.num { font: 1.15rem "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; color: var(--ochre); }
+.ar { display: block; font-family: "IBM Plex Sans Arabic", sans-serif; color: var(--muted); font-size: .9rem; }
+.muted { color: var(--muted); font-size: .9rem; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Arabati Wein · عربتي وين؟ · statistics</div>
+  <h1>What the registry holds today</h1>
+  <p class="muted">Measured from the database on <strong>__GENERATED__</strong>. Posts collected from <strong>__FIRST_POST__</strong> to <strong>__LATEST_POST__</strong>; last extraction run <strong>__LAST_EXTRACTION__</strong>. Machine-readable copy: <a href="/stats.json">stats.json</a>.</p>
+  <nav><a href="/">Registry</a><a href="/support.html">Support the project</a><a href="/privacy.html">Privacy</a></nav>
+
+  <table>
+    <tbody>
+__STATS_TABLE__
+    </tbody>
+  </table>
+
+  <h2>How to read these numbers</h2>
+  <p><strong>Identified vehicles</strong> counts distinct normalised chassis numbers, plus distinct plates on rows that carry no chassis. It is the honest size of the registry. The raw number of extracted sighting rows is <strong>__SIGHTING_ROWS__</strong>, far higher, because the same recovery list is reposted to many groups; we never quote it as a count of vehicles.</p>
+  <p><strong>Leads relayed</strong> are standing-watch hits that a human verified and passed to the registrant. <strong>Recoveries confirmed</strong> counts only cars whose owner told us the car came back after a registry lead. Both are kept by hand and will be published monthly whether or not they move.</p>
+  <p><strong>Posts awaiting processing</strong> is the backlog: posts collected but not yet read for vehicle records. Intake currently outruns the free processing tier, which is the second item on the <a href="/support.html">funding ladder</a>.</p>
+
+  <footer>
+    <p>Arabati Wein is an independent community project, not affiliated with the Sudan Police, the Traffic Department or any government body. Official recovery is free: <a href="https://sudanpolice.net/reg/car_stealing" rel="noopener">sudanpolice.net/reg/car_stealing</a>.</p>
+  </footer>
+</div>
+</body>
+</html>

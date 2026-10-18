@@ -1,0 +1,92 @@
+You are analysing Car Hunt posts that carry PHOTOS. These have never been
+looked at — the Facebook harvester only began saving images on 2026-08-24, so
+this is the first time anyone has read what is in them.
+
+WHY THIS MATTERS MORE THAN THE TEXT QUEUE:
+The text corpus is saturated — the same كشف/حصر recovery lists circulate
+between groups, and recent passes yielded ~2% cars not already catalogued.
+The images are different: an earlier sweep of car-source photos found legible
+identifiers in 37% of them that the cheap screening tier had missed, including
+full 17-character VIN plates photographed on wrecked cars. That is unread
+ground.
+
+THE GOVERNING RULE: the search is for an IDENTIFIER, not a resemblance. Never
+judge whether a car looks like the target — a white Corolla looks like every
+other white Corolla, and chassis-swapping is the standard laundering method
+locally. What counts is a chassis/VIN or plate number that is genuinely
+legible, in the image or in the text.
+
+For EACH post in your assigned batch file:
+1. Read the post's `text`.
+2. Use the Read tool on EVERY path in `images` and actually look at it.
+3. Produce the verdict object described in the analyst instruction set at
+   C:\Users\User\Desktop\Car Hunt\prompts\analyst_system_prompt.txt — same JSON
+   shape as the text pipeline, so it ingests identically.
+
+Fill `vehicles` from BOTH sources: identifiers written in the text AND
+identifiers you can genuinely read in a photo. In each vehicle's
+`description`, state where it came from — e.g. "read from door-jamb VIN plate"
+or "from post text" — so a later reader knows which are image-derived.
+
+HARD RULES:
+- NEVER guess or reconstruct a number. A fabricated chassis is far worse than
+  none. Blurry, redacted or painted-over -> leave it null and say so.
+  A plate posted with the digits whitewashed has already fooled one vision
+  model on this project into reporting the target's exact plate.
+- Identifiers taken from the TEXT must appear literally in that post's text.
+- Never carry a contact number between posts.
+- Preserve Arabic-Indic digits exactly.
+- `مضلع` is a BODY TYPE (Toyota Hilux double-cab), never a model: "اكسنت مضلع"
+  -> Hyundai Accent; bare "مضلع" -> model "double-cab pickup (مضلع)", make null;
+  "كيا مضلع" -> make Kia + body type, never "Kia Hilux". Same for شريحة, بوكس,
+  حافلة, لوري, قلاب, ركشة, امجاد.
+- `كوزوي` = Kuozui, Toyota's Taiwan plant — the one that built the car being
+  searched for ({{VIN}}). Flag those prominently.
+
+WATCH FOR, and report immediately in `reasons`:
+- a photographed كشف/حصر sheet — a picture of a handwritten or printed list of
+  chassis/plate numbers. Transcribe every line you can read.
+- a door-jamb or engine-bay VIN plate, which is where a full 17-character
+  chassis appears.
+- anything starting {{VIN_PREFIX}}, or the digits {{CHASSIS_TAIL}}, or plate {{PLATE_SERIAL}}.
+
+Cover EVERY post id in your batch. If you cannot finish, write what you have
+and say plainly which ids are missing. Valid JSON, UTF-8, no markdown fences.
+
+## PUT ONLY THE IDENTIFIER IN THE IDENTIFIER FIELD
+
+`chassis` and `plate` must contain the identifier and nothing else. No
+parentheses, no caveats, no comparisons, no "from text", no "does not match".
+Every observation, doubt, source note and comparison belongs in `description`.
+
+This is not a style preference. Identifiers are normalised by stripping
+non-alphanumeric characters, so commentary is folded into the value. An agent
+wrote:
+
+    chassis: "5223949 (from text; does not match target VIN fragment {{CHASSIS_TAIL}})"
+
+which normalised to ...FRAGMENT{{CHASSIS_TAIL}} and registered as a MATCH on {{CHASSIS_TAIL}} —
+a phantom hit on the exact number this project exists to find. The mirror of
+that failure is worse: a REAL match arriving with prose appended would have a
+normalised value no exact-match query can find, and the car would be missed.
+
+If you are unsure of a character, put the legible characters in the field and
+explain the uncertainty in `description`.
+
+## DO NOT TRANSCRIBE OWNER NAMES OR ADDRESSES FROM OFFICIAL DOCUMENTS
+
+Photographed vehicle-registration cards (رخصة مركبة / استمارة) carry the
+registered owner's full name, home address and personal phone. Record the
+VEHICLE identifiers from them — VIN, plate, make, model, year — and write
+`from a vehicle registration document photo` in `description`. Do NOT copy the
+owner's name, address, or the phone printed on the card.
+
+Why: this registry is published on a public web page. A poster who writes
+"call me on 09xx" has chosen to be contactable. The owner of a registration
+card that a stranger photographed and posted has not, and tying a named person
+to a home address and a vehicle on an indexed page — during a war — can put
+them in danger. A phone number offered in the post body is fine; one lifted off
+a government document is not.
+
+The exception is the phone number the POSTER gives for contact about the
+vehicle. That is the contact field's purpose and it stays.

@@ -1,0 +1,430 @@
+# Car Hunt configuration — EXAMPLE. Copy to config.yaml and fill in.
+# config.yaml is gitignored: it holds API keys, Telegram secrets and the
+# profile of the car this deployment searches for.
+
+anthropic:
+  # API key is read from the ANTHROPIC_API_KEY environment variable
+  # (or an `ant auth login` profile) — do not put it in this file.
+  model: claude-opus-5          # deep pass: full reference-photo comparison
+  screen_model: claude-haiku-4-5  # cheap bulk screening; escalates on anything interesting
+
+# Used ONLY when Claude cannot answer (spend limit, rate limit, outage).
+# Set OPENAI_API_KEY in the environment. Adjust model names to whatever your
+# OpenAI account has access to.
+fallback:
+  enabled: true
+  model: gpt-5.6-sol       # deep pass (vision, reference-photo comparison)
+  screen_model: gpt-5.6-luna  # same generation, 20x cheaper: $0.20/$1.20 per
+                              # 1M vs sol's $4/$20 — the bulk stream is screening
+  effort: low              # reasoning tokens bill at the OUTPUT rate
+  screen_effort: none      # measured 0 reasoning tokens; screening needs none
+  # Covers reasoning AND visible output on these models. Raised 16000 -> 64000
+  # on 2026-08-24: a yield audit found 36 posts the deep tier had read but
+  # could not finish WRITING. Post 10362 carries 1,402 chassis numbers in
+  # 24,934 characters and only 16 vehicles came back — at roughly 40 output
+  # tokens per vehicle object that post needs ~56,000 tokens to emit, so the
+  # JSON was cut off long before the list ended. 8000 truncated a single
+  # verdict; 16000 truncated the mega-lists that matter most, and those are
+  # exactly the كشف/حصر posts a recovery office publishes.
+  max_output_tokens: 64000
+  # OPENAI_API_KEY takes precedence if it is ever set; this file is gitignored
+  # and already holds the Telegram secrets, so the key lives here and every
+  # service picks it up on restart with no environment setup.
+  api_key: CHANGE_ME
+
+# Moonshot AI (Kimi) — a third scoring provider, selected deliberately with
+# `python scripts\openai_backlog.py --provider moonshot`. Not a fallback: the
+# analyzer's automatic failure path still goes to OpenAI.
+#
+# The international platform (api.moonshot.ai, USD) and the mainland China
+# platform (api.moonshot.cn, RMB) are SEPARATE accounts with separate keys —
+# a key from one 401s on the other. Set base_url to switch.
+#
+# Rate limits are gated on CUMULATIVE RECHARGE, not spend: at $1 (Tier 0) the
+# account gets 3 requests/min and 1 concurrent request, so keep --workers at 1
+# there. $10 (Tier 1) buys 200 RPM / 50 concurrent and makes the backlog a
+# ~1-hour run instead of a ~20-hour one.
+moonshot:
+  enabled: true
+  base_url: "https://api.moonshot.ai/v1"
+  # kimi-k2.6: text AND images, $0.95/M in ($0.16 cached) / $4.00/M out.
+  # kimi-k3 is the flagship at $3.00/$15.00 — 3-4x the price for a job that
+  # is mostly transcribing digits, so k2.6 is the default on both tiers.
+  # Do NOT use moonshot-v1-* or kimi-k2.5: both sunset 2026-08-31.
+  model: kimi-k2.6          # deep pass, and every post that has photos
+  screen_model: kimi-k2.6   # no cheaper multimodal tier exists here
+  # OMITTED by default: kimi-k2.6 rejects every value but 1 with a 400
+  # (`only 1 is allowed for this model`), so there is no lever here to
+  # make transcription deterministic. Leave null unless a model needs it.
+  temperature: null
+  # THINKING MODE — NOT CONTROLLABLE, leave null. k2.6 reasons by default and
+  # bills it as output, which is why a 120-character post costs ~1,700 output
+  # tokens and ~$0.009 instead of the ~150 tokens its verdict JSON needs.
+  # `chat_template_kwargs.thinking` is the documented switch and this endpoint
+  # SILENTLY IGNORES it: probed 2026-08-28 with true/false/absent on the same
+  # prompt, all three returned reasoning (161/198/175 chars) and identical
+  # token counts. There is no cheap tier here — price the backlog accordingly.
+  thinking: null
+  # Matches the Claude/OpenAI path. 16000 was the first guess and it truncated
+  # immediately: benchmark post 22475 carries 267 vehicles and hit the cap
+  # dead-on at finish_reason=length. Probed live on 2026-08-28 — k2.6 accepts
+  # max_completion_tokens up to at least 262144, so the ceiling was ours, not
+  # the model's. A truncated verdict raises and leaves the post queued rather
+  # than writing half a كشف list.
+  max_output_tokens: 64000
+  max_retries: 2
+  # 40 minutes. NOT generous — measured: a 953-vehicle كشف list generated for
+  # 24 minutes straight before hitting the token ceiling. The old 600s default
+  # meant such a post timed out and SILENTLY RESTARTED the whole generation,
+  # billing every attempt. Pair a long timeout with few retries, never the
+  # reverse.
+  timeout: 2400
+  # MOONSHOT_API_KEY in the environment takes precedence if it is ever set.
+  api_key: CHANGE_ME
+
+# Vertex AI — Gemini models billed as an ordinary Google Cloud service.
+# THIS IS THE LANE THE FREE-TRIAL CREDIT CAN PAY FOR. Verified 2026-09-01:
+# the $263 credit on billing account <billing-account> CANNOT pay for the
+# AI Studio Gemini API — Google excluded it in March 2026, which is why AI
+# Studio asks you to buy Prepay credits and why the API kept answering
+# `...-FreeTier` (20/day) even with billing correctly linked. Vertex AI is a
+# normal Cloud service and the credit does cover it, with the same models.
+#
+# SETUP (once, interactive — no key goes in this file):
+#   gcloud auth application-default login
+#   gcloud services enable aiplatform.googleapis.com --project <project>
+vertex:
+  enabled: true
+  # Linked to My Billing Account (<billing-account>), which holds the
+  # credit. GOOGLE_CLOUD_PROJECT in the environment takes precedence, and
+  # ADC's own default project is used if both are unset.
+  project: CHANGE_ME
+  # `global` routes to wherever the model is served. A regional endpoint can
+  # 404 a model that global serves, so do not narrow this without a reason.
+  location: global
+  # Benchmarked sibling gemini-3.5-flash-lite scored 100% chassis recall with
+  # 0 fabrications on 19 posts; 3.7-flash is the stronger model and the cost
+  # difference is noise against the credit. Model ids get the `google/`
+  # prefix automatically — see carhunt/vertex.py.
+  # FREE TIER, 2026-09-05. Flash-Lite is the only family with real free
+  # quota (500/day each vs 20/day for full Flash) and it benchmarked at
+  # 100% chassis recall / 0 fabrications. Still works while the project
+  # is billing-suspended, because AI Studio's free tier does not route
+  # through the suspended billing path.
+  model: gemini-3.7-flash
+  screen_model: gemini-3.7-flash
+  temperature: null
+  effort: null
+  # Reasoning shares the output budget: keep mega كشف lists on the local
+  # subagent pipeline with --skip-over-chars 8000.
+  max_output_tokens: 60000
+  max_retries: 3
+  timeout: 900
+
+# Google Gemini via AI Studio — the FREE-TIER lane, added 2026-08-31 because
+# the Sonnet subagent waves were eating the whole weekly subscription cap.
+# STATUS: UNBENCHMARKED. Must pass openai_backlog.py --benchmark plus
+# audit_verdicts.py against known-good Sonnet extractions before it may write
+# a single row — the same gate that admitted Kimi for text and rejected its
+# image work. Until then, --dry-run only.
+# KEY: make it at https://aistudio.google.com/apikey on a project WITHOUT
+# billing linked — tier is per-project, and a key from a billed project
+# (like the google_vision one below) bills at paid rates instead of $0.
+# FREE-TIER PHYSICS: ~5-15 requests/min, ~1,000+/day on Flash models. The
+# client throttles itself to `rpm` and a post that still 429s stays queued;
+# the backlog drains at quota speed across days. That is the deal: $0, slower.
+gemini:
+  enabled: true
+  # base_url defaults to the OpenAI-compat endpoint in carhunt/gemini.py.
+  # Strongest model on the free tier, on BOTH tiers — there is no cost reason
+  # to run a weaker screen model when every request is $0. Verify the exact id
+  # with --provider gemini --list-models before a run; preview ids move.
+  # Probed 2026-08-31: `gemini-3-flash` DOES NOT EXIST on this key. The
+  # Flash family present is 3-flash-preview / 3.5 / 3.6 / 3.7-flash;
+  # 3.7 is the newest and is what quality-first selects.
+  # FREE TIER, 2026-09-05. Flash-Lite is the only family with real free
+  # quota (500/day each vs 20/day for full Flash) and it benchmarked at
+  # 100% chassis recall / 0 fabrications. Still works while the project
+  # is billing-suspended, because AI Studio's free tier does not route
+  # through the suspended billing path.
+  model: gemini-3.5-flash-lite
+  screen_model: gemini-3.5-flash-lite
+  # Left at the model default deliberately: Google documents the Gemini 3
+  # thinking models as tuned for their defaults. A "safer" 0.0 has to earn
+  # its place in a benchmark, not be assumed.
+  temperature: null
+  # reasoning_effort forwarded only if set. Reasoning is free on this tier
+  # and quality is the constraint, so the default stays.
+  effort: null
+  # Reasoning shares the output budget (same trap as Kimi): mega كشف lists
+  # belong on the local subagent pipeline — use --skip-over-chars 8000.
+  max_output_tokens: 60000
+  # FREE tier caps 3.7-flash at 5 RPM / 20 RPD. Raise to ~60+ once the
+  # project is on paid Tier 1, where the ceiling is far higher.
+  rpm: 12
+  # KEEP LOW. The free quota is PER DAY, so every retry spends the day's
+  # allowance: max_retries 6 burned the whole 20-request daily quota of
+  # gemini-3.7-flash on 2026-08-31 without scoring one post.
+  max_retries: 2
+  timeout: 900
+  # GEMINI_API_KEY in the environment takes precedence.
+  api_key: CHANGE_ME
+
+# Google Cloud Vision — OCR only, used as a PRE-PROCESSOR rather than an
+# analyst: it transcribes an image, it has no idea which number on a
+# windscreen is a chassis and which is a phone number. The point of running it
+# is that OCR text is a verifiable artifact, so an identifier read off a photo
+# stops being unverifiable prose and becomes text the grounding gate can check.
+# Project <gcp-project> ("Timelapse"); Cloud Vision API enabled.
+# $1.50 per 1,000 images, first 1,000 per feature per month free.
+# GOOGLE_VISION_API_KEY in the environment takes precedence.
+google_vision:
+  enabled: true
+  feature: DOCUMENT_TEXT_DETECTION
+  api_key: CHANGE_ME
+
+telegram:
+  # Get api_id + api_hash from https://my.telegram.org (API development tools)
+  api_id: CHANGE_ME
+  api_hash: CHANGE_ME
+  session_name: carhunt
+  # Bot token from @BotFather — used by the intake bot that family/friends
+  # forward suspicious posts to.
+  bot_token: CHANGE_ME
+  # Where alerts are sent. "me" = your own Saved Messages.
+  # Can also be a @username or a group/channel id.
+  alert_chat: "me"
+  # Numeric chat id for Bot-API notifications (carhunt/notify.py). A bot
+  # cannot message "me": send the bot any message, then run
+  #   python -m carhunt.notify --whoami
+  # (pause the intake bot for that minute — it consumes the same updates)
+  # and paste the id here. 0 = disabled.
+  notify_chat_id: 0
+  # Who may use the intake bot. EMPTY = open to anyone who finds it (fine while
+  # sharing with family). Add numeric Telegram user IDs to lock it down —
+  # each submission costs API budget.
+  allowed_user_ids: []
+  max_per_user_per_hour: 30
+  # Telegram channels/groups to monitor. Use @usernames or t.me links, e.g.:
+  #   - "@sudancarsale"
+  #   - "https://t.me/some_channel"
+  channels:
+    - "@sudan_car"      # فتش عربيتك — 11K subs, lost-vehicle search engine + sudan-car.vercel.app
+    - "@losscarsudan"   # عربات مفقودة في السودان — 2.4K subs
+    - "@arbatsudank"    # عرض عربات السودان
+    - "@alixxcar2020"   # تسويق عربات السودان
+    # discovered 2026-08-23 by research agent:
+    - "@ftshly"         # منصة فتش لي — 4.4K, DAILY raw chassis/plate lists from field agents ("رصد اليوم")
+    # DROPPED 2026-08-24 after a yield audit. Between them these two produced
+    # 3,683 posts (27% of everything collected, 25% of all stored text) and
+    # yielded 12 vehicles, ZERO chassis numbers, and no post ever scoring
+    # above 2. A vision sweep of all 1,291 of their image posts found no
+    # legible identifier either. The abandoned-vehicle footage that justified
+    # @sudaaan reaches us anyway via @losscarsudan, which forwards it and is
+    # the best per-post source we have (604 vehicles from 21 posts).
+    # Re-enable by uncommenting; the 3,683 collected posts are kept.
+    # - "@sudaaan"      # السودان — 220K general
+    # - "@sudanbid"     # SudanBid — Sudanese tenders/auctions
+
+facebook:
+  # Facebook has no usable API for this; these sources are swept via the
+  # logged-in Chrome browser (ask Claude to "sweep the Facebook groups"),
+  # and posts are fed in with: python -m carhunt.ingest add ...
+  # `media: false` skips photo download for a source. Set on the دلالة
+  # (dealer) groups: their photos are marketing shots of intact cars, whereas
+  # every VIN plate recovered from a Facebook image so far came from a
+  # recovery group, where people photograph the door tag of a found wreck.
+  groups:
+    - id: "993842458658985"
+      name: "(user-provided group 1)"
+    - id: "796445755137177"
+      name: "(user-provided group 2)"
+    - id: "6326254187471594"
+      name: "العربات والمفقودات المسروقه من الحرب (128K)"
+    - id: "696207072195117"
+      name: "مفقودات الحرب والسيارات المفقودة (330K)"
+    - id: "1200135974768848"
+      name: "مفقودات الحرب والسيارات السودان خرطوم والجزيرة (79K)"
+    - id: "859354772664822"
+      name: "مفقود موجود (47K)"
+    - id: "937348630883545"
+      name: "قروب بلاغات السيارة المفقودة (44K)"
+    - id: "945879980039956"
+      name: "عربات مفقودة تمت مشاهدتها (150K)"
+    - id: "7207447382702670"
+      name: "مفقودات الحرب والسيارات المسروقة (14K)"
+    - id: "627023535543636"
+      name: "العربات المفقودة (27K)"
+    # discovered 2026-08-22 evening sweep:
+    - id: "870286307378394"
+      name: "عربات مفقودة مرجوعة بالإنتربول"
+    - id: "1960889917783205"
+      name: "عربات مفقودة (عربتك معانا)"
+    - id: "810318573778425"
+      name: "سيارات مفقودة عربات منهوبة مسروقة حرب السودان"
+    - id: "659353943536390"
+      name: "عربات منهوبة ومسروقة موجودة بولاية الجزيرة (1.7K)"
+    - id: "1299448381436574"
+      name: "مسروقات منهوبات شفشفة سرقة عربات السودان الحرب (28K)"
+    - id: "1426718378644140"
+      name: "عربات مفقودة ومنهوبة ي جامع ي رقيب (14K)"
+    - id: "1143598625821644"
+      name: "عربات مفقودة و مسروقة (#لقيت_عربية)"
+    - id: "2042290632786888"
+      name: "عربات مفقودة و عربات موجودة"
+    - id: "867014651797151"
+      name: "عربات مفقودة جنوب الخرطوم"
+    - id: "3619156955070346"
+      name: "عربات مفقودة"
+    - id: "633432611562381"
+      name: "العربات المسروقه في زمن الحرب"
+    - id: "617974156880938"
+      name: "العربات المسروقه اثناء الحرب"
+    - id: "715139444222674"
+      name: "فتش لي عربيتي"
+    - id: "6124625374292788"
+      name: "ساعد غيرك اي عربية مفقودة اعرضها"
+    - id: "991352059485558"
+      name: "منصة مفقودات الحرب عربات وركشات"
+    # discovered 2026-08-23 by research agent:
+    - id: "6254926201235451"
+      name: "العربي للسيارات المفقودة (216K) — was listed as 'عربات مسروقة _ حرب
+              السودان'; Facebook shows this name as of 2026-08-24"
+    - id: "1308953390040337"
+      name: "عربات مسروقة موجودة"
+    - id: "917064268426494"
+      name: "مفقودات و موجودات حرب (١٥ ابريل) في السودان"
+    - id: "2158481518233313"
+      name: "فتش عربيتك (group — run by @sudan_car)"
+    # DROPPED 2026-09-12 — measured yield, distinct chassis per scored post:
+    # 428925231494262 = 0.00 over 212 scored, 274077108762400 = 0.04 over
+    # 1,638 scored, 869330215293936 = 0.00 over 1,502 scored. Together they
+    # were still feeding ~257 posts/day, 9% of all intake, for no
+    # identifiers. For contrast telegram:sudan_car returns 51.95. These are
+    # دلالة dealer groups: sale ads for intact cars, not recovery posts.
+    # Re-enable only with fresh yield numbers, not on a hunch.
+    # - id: "428925231494262"
+    #   name: "دلالة عربات السودان كل الموديلات"
+    #   media: false
+    # - id: "274077108762400"
+    #   name: "دلالة عربات السودان"
+    #   media: false
+    # discovered 2026-08-24 by Facebook group search (عربات مفقودة / عربات
+    # مسروقة / مفقودات الحرب / كشف عربات / عربات ام درمان). Ordered by size.
+    # 1414268392492539 "مفقودات الحرب (الجزيرة الحصاحيصا)" 12.4K is PRIVATE —
+    # a join request was sent 2026-08-24 and is pending admin approval. Add it
+    # here once approved; until then the harvester cannot read a single post.
+    - id: "290795363310992"
+      name: "مفقودات الحرب عامه في بحري ام درمان شرق النيل (122K, 90+/day)"
+    - id: "996450738294918"
+      name: "عربات مسروقة (شرق الجزيرة) (85K)"
+    - id: "901019204309875"
+      name: "#مفقودات عربات (65K)"
+    - id: "284585760768318"
+      name: "عربات مسروقة الخرطوم (52K)"
+    - id: "260350633181745"
+      name: "مفقودات الحرب (31K)"
+    - id: "1158093314751142"
+      name: "عربات مسروقة في الخرطوم (27K)"
+    - id: "659747767104388"
+      name: "عربات مفقوده في الخرطوم -ام درمان- بحري (21K, 90+/day)"
+    - id: "298082169845940"
+      name: "مفقودات الحرب سيارات جنوب الخرطوم (17K)"
+    - id: "857174675694411"
+      name: "عربات>>موجودة<<فقط (17K)"
+    - id: "1637513016881947"
+      name: "عربات مسروقه موجودة في جبل أولياء (13K)"
+    - id: "968695168804800"
+      name: "تجمع مفقودات الحرب في السودان (10.5K)"
+    - id: "732542418418748"
+      name: "مفقودات الحرب عامه بحري الخرطوم ام درمان شرق النيل (10K)"
+    - id: "2334910333610958"
+      name: "عربات مفقودة جنوب ام درمان صالحه (4.6K)"
+    # dealer group, not recovery: a laundered car has to be SOLD somewhere, and
+    # this one is Omdurman-specific — the city the car was registered in — at a
+    # volume worth reading. The 394K/235K دلالة groups were left out: mostly
+    # unrelated sale ads at 90+ posts/day each.
+    # - id: "869330215293936"
+    #   name: "دلاله عربات ام درمان (22K, dealer)"
+    #   media: false
+    # found via the "Related groups" panel on a group page — a better discovery
+    # vector than keyword search, since Facebook surfaces what actual members
+    # of these groups also join
+    - id: "1485185051516519"
+      name: "فتش لي (105K)"
+    - id: "1390030481357467"
+      name: "سيارات عربات الخرطوم (43K)"
+  # Profiles/pages that post recovery lists on their own timeline. Swept by
+  # the same rotation as the groups, but TIMELINE ONLY — a profile has no
+  # in-page search, so targeted queries do not apply to these.
+  profiles:
+    - id: "61587302721505"
+      name: "المغرب للعربات المفقودة — numbered كشف/حصر lists, chassis per line"
+    - id: "61578044982545"
+      name: "فتش لي عربيتي (162K, Omdurman) — reels of found cars; the
+              comment threads are owners' lost-car reports"
+  # Recovery pages post "كشف" lists of spotted cars WITH chassis-number tails
+  # as plain text — so searching Facebook for our identifiers directly is the
+  # highest-value recurring check. Run each of these on every sweep:
+  identifier_searches:
+    # Templates — the deploy fills these from the car profile. Search Facebook
+    # for the chassis tail (last 6 and 7 characters), the full VIN and the
+    # model + plate serial, with and without the Arabic word شاسي.
+    - "https://www.facebook.com/search/posts/?q=%D8%B4%D8%A7%D8%B3%D9%8A%20{{CHASSIS_TAIL6}}"   # شاسي <tail6>
+    - "https://www.facebook.com/search/posts/?q=%D8%B4%D8%A7%D8%B3%D9%8A%20{{CHASSIS_TAIL7}}"   # شاسي <tail7>
+    - "https://www.facebook.com/search/posts/?q={{CHASSIS_TAIL6}}"
+    - "https://www.facebook.com/search/posts/?q={{CHASSIS_TAIL7}}"
+    - "https://www.facebook.com/search/posts/?q={{VIN}}"
+    - "https://www.facebook.com/search/posts/?q=%D9%83%D9%88%D8%B1%D9%88%D9%84%D8%A7%20{{PLATE_SERIAL}}"  # <model> <plate serial>
+
+# Sources that are general-interest rather than vehicle-specific. Their posts
+# nearly always carry a photo, so images alone would wave every one through to
+# a paid call. For these, the TEXT must mention a vehicle as well.
+general_sources:
+  # both dropped from `channels` above on 2026-08-24 (yield audit). Left listed
+  # so the strict rule still applies to the 3,683 posts already collected from
+  # them, and so re-enabling either channel restores the correct behaviour.
+  - "telegram:sudaaan"
+  - "telegram:sudanbid"
+
+matching:
+  # Posts scoring at or above this (0-100) trigger an instant alert.
+  alert_threshold: 70
+  # Posts scoring below this are stored but marked not-a-candidate.
+  candidate_threshold: 40
+  # Attach the owner's reference photos and ask for a visual comparison.
+  # OFF by decision (2026-08-23): a white 2013-2016 Corolla looks like every
+  # other one, and chassis/engine transplant is the standard laundering
+  # method here — the car will be found by an IDENTIFIER, whether written in
+  # the post text or legible in a photo, not by resemblance. Turning this off
+  # also stops paying to send the reference photo on every deep call.
+  use_reference_photos: false
+
+car:
+  make: Toyota
+  model: Corolla
+  model_code: ""
+  year: 2015
+  production_date: ""
+  color: "White / أبيض"
+  vin: "CHANGE_ME_17_CHARACTER_VIN"
+  engine: ""
+  plate: "12345 / خ1"
+  registered_at: "Omdurman"
+  made_in: ""
+  # THE MOST IMPORTANT SECTION — thieves change plates, not dents.
+  # List every unique mark: dents, scratches, stickers, rims, seat covers,
+  # tinting, cracks, accessories, anything a stranger's car wouldn't have.
+  distinguishing_features:
+    - "example: sticker on the rear-right window"
+
+# Netlify project that serves mycarsd.online (scripts/netlify_deploy.py,
+# scripts/fetch_watches.py). NETLIFY_SITE_ID in the environment overrides.
+netlify:
+  site_id: CHANGE_ME
+
+# Outbound notifications for standing-watch leads (carhunt/notify.py).
+# Email goes through Resend when a key exists in RESEND_API_KEY or
+# site/resend_key.txt; until mycarsd.online is verified there it is a no-op.
+notify:
+  resend_from: "Arabati Wein <alerts@mycarsd.online>"

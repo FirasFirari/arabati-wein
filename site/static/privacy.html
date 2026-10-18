@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arabati Wein Privacy</title>
+<meta name="description" content="What the Arabati Wein registry of vehicles lost in the Sudan war collects, what it publishes, what it never publishes, how search queries are recorded, and how to ask for a correction or removal.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://mycarsd.online/privacy.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Arabati Wein Privacy">
+<meta property="og:description" content="Privacy and data policy of the free Sudan lost-vehicle registry.">
+<meta property="og:url" content="https://mycarsd.online/privacy.html">
+<meta property="og:site_name" content="Arabati Wein">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<style>
+:root { --bg:#f4f6fa; --paper:#fff; --fg:#182236; --muted:#5b6579; --line:#d6dbe6; --ink:#1d3f8a; --ochre:#b0761a; --ochre-soft:#f6ecd8; }
+@media (prefers-color-scheme: dark) { :root { --bg:#111827; --paper:#182135; --fg:#e8ecf4; --muted:#a2acbf; --line:#2b3650; --ink:#8fb0f2; --ochre:#e0ad55; --ochre-soft:#3a2f18; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font: 16px/1.65 "IBM Plex Sans","IBM Plex Sans Arabic",system-ui,sans-serif; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 40px max(16px, env(safe-area-inset-right,0px)) 64px max(16px, env(safe-area-inset-left,0px)); }
+h1 { font-size: 2rem; margin: 0 0 6px; line-height: 1.15; } h2 { font-size: 1.3rem; margin: 36px 0 10px; }
+p, li { max-width: 68ch; } a { color: var(--ink); }
+nav a { margin-right: 14px; font-size: .95rem; }
+.eyebrow { font: 0.78rem ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+.ar { direction: rtl; text-align: right; font-family: "IBM Plex Sans Arabic", sans-serif; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; margin: 22px 0; }
+.ar h2 { margin-top: 0; font-family: inherit; }
+.note { border-left: 3px solid var(--ochre); background: var(--ochre-soft); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 18px 0; }
+.tbl { overflow-x: auto; } table { border-collapse: collapse; width: 100%; font-size: .93rem; min-width: 560px; background: var(--paper); }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
+code { user-select: all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Arabati Wein · عربتي وين؟ · privacy and data policy · reviewed __BUILD_DATE__</div>
+  <h1>Privacy</h1>
+  <nav><a href="/">Registry</a><a href="/support.html">Support the project</a><a href="/stats.html">Statistics</a></nav>
+
+  <section class="ar" lang="ar" dir="rtl">
+    <h2>الخلاصة بالعربية</h2>
+    <p>السجل يجمع منشورات كانت عامة أصلاً في مجموعات وقنوات عن العربات المنهوبة والمفقودة، ويستخرج منها سجلاً لكل عربة (النوع، اللون، السنة، الشاسي، اللوحة، الحالة، الموقع، ورقم التواصل كما كتبه صاحب المنشور نفسه) مع رابط المنشور الأصلي. <strong>لا ننشر الصور أبداً</strong>، ولا النص المقروء آلياً من صور المستندات (لأنه قد يحوي اسم المالك وعنوانه ورقمه)، ولا بيانات من يسجّل رقماً للمتابعة؛ هذه تُستخدم فقط لإبلاغه إن ظهر رقمه. الموقع يسجّل عبارات البحث، بما فيها الأرقام المكتوبة، في أداة التحليلات (Microsoft Clarity) بقرار من مشغّل المشروع، ولا تُربط باسم أو رقم تواصل ولا تُنشر. لا نطلب رسوماً، ولا نتواصل مع ناشر أي منشور، ولا نطلب رقم الشاسي في الخاص. يمكن لأي شخص طلب حذف أو تصحيح سجل يخصّه عبر وسيلة التواصل في صفحة الدعم أو عبر بوت تيليجرام، ونرد خلال ٧ أيام.</p>
+  </section>
+
+  <h2>What the registry is</h2>
+  <p>A free public index of <strong>vehicles</strong>, built from posts that were already public on Facebook groups, Facebook pages and Telegram channels about vehicles looted or lost in the Sudan war. It exists so a family can type a chassis or plate number and learn where that number has appeared.</p>
+
+  <h2>What we collect, and what is published</h2>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>Data</th><th>From</th><th>Kept where</th><th>Published?</th></tr></thead>
+    <tbody>
+      <tr><td>Post text, date, link and source</td><td>public groups, pages, channels; forwards to our Telegram bot</td><td>database</td><td>The <strong>vehicle record</strong> derived from it, with a link to the original post. The full post text is not published.</td></tr>
+      <tr><td>Photos attached to posts</td><td>same</td><td>database folder</td><td><strong>No.</strong> Photos are never republished.</td></tr>
+      <tr><td>Text read from photos (OCR)</td><td>our own transcription</td><td>database only</td><td><strong>No.</strong> A photographed registration card or ID can contain the owner’s name, address and phone. Used only to check identifiers.</td></tr>
+      <tr><td>Per-vehicle fields: make, model, colour, year, chassis, plate, status, location, description, and the <strong>contact number as written in the post</strong></td><td>extracted from the post</td><td>database and site</td><td>Yes. A number the poster published with their own listing is shown beside a scam warning.</td></tr>
+      <tr><td>Standing-watch registrations: identifier, contact, note</td><td>the form on the site, with your consent</td><td>Netlify Forms and the operator’s machine</td><td><strong>No.</strong> Used only to tell you your number appeared. Never shown on the site or the dashboard.</td></tr>
+      <tr><td>Analytics: device, country, pages, clicks, session recordings, custom events</td><td>visitors to mycarsd.online</td><td>Microsoft Clarity</td><td>Not published. See below.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Search queries are recorded</h2>
+  <div class="note">
+    <p>The site sends each search query, <strong>including the number typed</strong>, to Microsoft Clarity as a custom event. This is a deliberate choice by the operator: if a stranger ever searches for the operator’s own stolen car, that is an investigative signal. We disclose it here so nobody is surprised. Queries are not linked to a name or contact, are not published, and are kept under Clarity’s retention periods. If you do not want your query recorded, search with your browser’s tracking protection on, or ask us to look a number up for you.</p>
+  </div>
+
+  <h2>What we never do</h2>
+  <ul>
+    <li>We never charge anyone, for anything.</li>
+    <li>We never contact the person who posted a vehicle, and we never give a registrant’s contact to anyone.</li>
+    <li>We never ask for a chassis number in a private message.</li>
+    <li>We never publish photos, OCR text, or watch registrations.</li>
+  </ul>
+
+  <h2>Your rights and how to ask</h2>
+  <p>Anyone can ask us to <strong>remove or correct</strong> a record that concerns them: a contact number they want taken down, a vehicle entry that is wrong, a watch registration they want deleted. Use the contact on the <a href="/support.html#contact">support page</a> or message the Telegram bot <code>@ArabatiWeinBot</code>, with the number or link concerned. We act within 7 days and confirm. Records removed from the registry are also removed from the next published build.</p>
+
+  <h2>Where data lives</h2>
+  <p>The database and photos live on the operator’s own machine (moving to a cloud server when funded). The published site is served by Netlify. Watch registrations are stored by Netlify Forms. Analytics by Microsoft Clarity. Model providers (Anthropic, OpenAI, Google) receive post text and photos for extraction under their API terms; no watch registration or analytics data is ever sent to a model.</p>
+
+  <h2>Legal basis and limits</h2>
+  <p>The project is run in the public interest by volunteers; it is not a government body and is not affiliated with the Sudan Police or the Traffic Department. Collection from Facebook is limited to public groups and pages and is being replaced by lists sent directly by their administrators. If you administer a group whose posts appear here and object, tell us and we will stop collecting from it.</p>
+
+  <footer>
+    <p>The authoritative version of this policy is <code>docs/PRIVACY.md</code> in the project’s source repository. Contact: <code>__CONTACT__</code>.</p>
+  </footer>
+</div>
+</body>
+</html>
