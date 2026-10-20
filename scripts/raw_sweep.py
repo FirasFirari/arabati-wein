@@ -173,12 +173,23 @@ def main() -> None:
     watches = watchlib.load_watches()
     sig = sorted({w["identifier"] for w in watches})
     stored = load_json(watchlib.RAW_HITS_JSON, {})
-    if not args.full and stored.get("watch_sig") == sig:
-        since, merged = state.get("watch_last_id", 0), stored.get("hits", {})
-    else:
-        since, merged = 0, {}
-    fresh = watchlib.scan_raw(conn, watches, since_post_id=since,
-                              extra_ids=reocr if since else None)
+    # Only a watch that was not in the last sweep needs ALL history; the rest
+    # continue incrementally. Until 2026-10-20 any change to the watch list
+    # rescanned every watch against every post, and at 61 watches that pass
+    # outgrew the task's 30-minute limit, so from the first new registration
+    # on, every hourly run was killed before it wrote anything.
+    known = set(stored.get("watch_sig") or []) if not args.full else set()
+    merged = {k: v for k, v in (stored.get("hits") or {}).items() if k in known} if known else {}
+    since = state.get("watch_last_id", 0) if known else 0
+    fresh: dict = {}
+    old_watches = [w for w in watches if w["identifier"] in known]
+    new_watches = [w for w in watches if w["identifier"] not in known]
+    if old_watches:
+        fresh.update(watchlib.scan_raw(conn, old_watches, since_post_id=since,
+                                       extra_ids=reocr if since else None))
+    if new_watches:
+        log(f"{len(new_watches)} new watch(es): scanning all history for them")
+        fresh.update(watchlib.scan_raw(conn, new_watches, since_post_id=0))
     for ident, hs in fresh.items():
         have = {h["post_id"] for h in merged.get(ident, [])}
         merged.setdefault(ident, []).extend(h for h in hs if h["post_id"] not in have)
