@@ -87,8 +87,9 @@ def fetch(token: str, days: int, dimensions: list[str]) -> list:
         params[f"dimension{i}"] = dim
     resp = requests.get(
         ENDPOINT, params=params, timeout=120,
-        headers={"Authorization": f"Bearer {token}",
-                 "Content-Type": "application/json"},
+        # No Content-Type on a GET: since 2026-10-20 the API answers 400 when
+        # a body type is declared on a request that has no body.
+        headers={"Authorization": f"Bearer {token}"},
     )
     if resp.status_code == 429:
         sys.exit("429 — the 10-requests-per-day quota is spent. Try tomorrow "

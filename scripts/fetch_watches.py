@@ -15,6 +15,14 @@ Without a token you can still do this by hand: export the CSV from
 https://app.netlify.com/projects/mycarsd/forms and save it as
 `data/watches.csv`. Everything downstream reads either file.
 
+NEW REGISTRATIONS -> TELEGRAM (since 2026-10-20). Every submission that was
+not in the previous data/watches.json is announced to the operator's Telegram
+chat (carhunt.notify.send_telegram, one message per fetch). The message carries
+the identifier, the note and the contact TYPE only, never the contact itself;
+the Netlify email and check_watches.py have the number. The first fetch on a
+machine with no watches.json is a silent baseline, so a wiped file cannot
+replay 60 alerts. --no-notify suppresses it for manual re-pulls.
+
 SUBMISSIONS CARRY PHONE NUMBERS. The JSON this writes is personal data; `data/`
 is gitignored, keep it that way and never paste its contents anywhere public.
 """
@@ -71,11 +79,68 @@ def get(token: str, path: str, **params):
     return resp.json()
 
 
+def _key(row: dict) -> tuple:
+    return (row.get("created_at") or "", row.get("identifier") or "")
+
+
+def load_previous():
+    """Keys of the submissions already on disk, or None when there is no file.
+
+    None (not an empty set) is what makes the very first fetch silent: with no
+    baseline every row would otherwise count as new.
+    """
+    if not watchlib.WATCHES_JSON.exists():
+        return None
+    try:
+        old = json.loads(watchlib.WATCHES_JSON.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return {_key(r) for r in old if isinstance(r, dict)}
+
+
+def _contact_type(contact: str) -> str:
+    from carhunt import notify
+    if notify.is_email(contact):
+        return "email"
+    if notify.normalize_phone(contact):
+        return "phone"
+    return "unparsed" if contact else "none"
+
+
+def announce_new(new_rows: list[dict], total: int) -> None:
+    """One Telegram message for every registration not seen before. Never fatal.
+
+    No contact details on purpose: the Netlify email already has them and
+    `check_watches.py` prints them locally. Telegram is a third party.
+    """
+    try:
+        from carhunt import notify
+        lines = [f"CarHunt: {len(new_rows)} new standing-watch registration(s) "
+                 f"({total} total)"]
+        for r in sorted(new_rows, key=lambda r: r["created_at"]):
+            when = (r["created_at"] or "")[:16].replace("T", " ")
+            ident = r["identifier"] or "(no identifier)"
+            note = (r["note"] or "").replace("\n", " ").strip()
+            line = f"• {ident} · {when} UTC · contact: {_contact_type(r['contact'])}"
+            if note:
+                line += f"\n  note: {note[:160]}"
+            lines.append(line)
+        lines.append("The hourly sweep checks them against all posts; a hit is a "
+                     "separate alert. Contacts: python scripts\\check_watches.py")
+        ok = notify.send_telegram("\n".join(lines))
+        notify.log(f"new registrations: {len(new_rows)} -> telegram {'sent' if ok else 'NOT sent'}")
+        print("telegram sent" if ok else "telegram NOT sent — see data/logs/notify.log")
+    except Exception as e:   # noqa: BLE001 — the fetch must still succeed
+        print(f"announce failed: {e}", file=sys.stderr)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
                     help="after fetching, match the watches against the "
                          "registry and print who to contact")
+    ap.add_argument("--no-notify", action="store_true",
+                    help="do not announce new registrations on Telegram")
     args = ap.parse_args()
 
     token = load_token()
@@ -111,12 +176,19 @@ def main() -> None:
             "created_at": s.get("created_at") or "",
         })
 
+    previous = load_previous()
     watchlib.WATCHES_JSON.parent.mkdir(parents=True, exist_ok=True)
     watchlib.WATCHES_JSON.write_text(
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     usable = sum(1 for r in rows if r["identifier"])
     print(f"fetched {len(rows)} submission(s), {usable} with an identifier "
           f"-> {watchlib.WATCHES_JSON}")
+
+    new_rows = [] if previous is None else [r for r in rows if _key(r) not in previous]
+    if new_rows:
+        print(f"{len(new_rows)} new registration(s) since the last fetch")
+    if new_rows and not args.no_notify:
+        announce_new(new_rows, len(rows))
 
     if args.check:
         db.init()
