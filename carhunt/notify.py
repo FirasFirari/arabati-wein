@@ -261,10 +261,13 @@ def compose_lead(watch: dict, hit: dict, post: dict) -> str:
     )
 
 
-def _operator_text(watch: dict, hit: dict, post: dict, channel: str, link) -> str:
+def _operator_text(watch: dict, hit: dict, post: dict, channel: str, link,
+                   verdict_note: str = "") -> str:
     url = post.get("url") or "no saved link"
-    lines = [f"CarHunt lead: watch {watch.get('identifier')}",
-             f"post {hit.get('post_id')} · {hit.get('kind') or 'unclear'} · {_date(post.get('seen_at'))}",
+    lines = [f"CarHunt lead: watch {watch.get('identifier')}"]
+    if verdict_note:
+        lines.append(verdict_note)
+    lines += [f"post {hit.get('post_id')} · {hit.get('kind') or 'unclear'} · {_date(post.get('seen_at'))}",
              f"why: {hit.get('why')}",
              f"source: {post.get('source')}",
              f"url: {url}",
@@ -275,7 +278,9 @@ def _operator_text(watch: dict, hit: dict, post: dict, channel: str, link) -> st
         lines.append("email sent (or stubbed — see notify.log)")
     else:
         lines.append("no usable contact — see data/leads_outbox.md")
-    lines.append("Verify by eye before anything else. Never contact the poster.")
+    lines.append("Nothing has been sent to the registrant; the draft is yours to send."
+                 if verdict_note else
+                 "Verify by eye before anything else. Never contact the poster.")
     return "\n".join(lines)
 
 
@@ -293,8 +298,12 @@ def _append_outbox(watch: dict, hit: dict, post: dict, link, message: str) -> No
         fh.write("\n<details><summary>message text</summary>\n\n" + message + "\n\n</details>\n")
 
 
-def notify_watch_hit(watch: dict, hit: dict, conn) -> dict:
-    """Fan one new raw-sweep hit out to the operator and the registrant."""
+def notify_watch_hit(watch: dict, hit: dict, conn, contact_registrant: bool = True,
+                     verdict_note: str = "") -> dict:
+    """Fan one hit out to the operator and, only if `contact_registrant`, to
+    the registrant. Since 2026-10-27 carhunt/verify.py calls this with
+    contact_registrant=False: the operator gets the card plus a WhatsApp
+    DRAFT and decides; no email goes out on a machine verdict."""
     result = {"telegram": False, "channel": "none", "outbox": False, "email": False}
     try:
         row = conn.execute("SELECT url, text, source, seen_at FROM posts WHERE id = ?",
@@ -303,7 +312,9 @@ def notify_watch_hit(watch: dict, hit: dict, conn) -> dict:
         message = compose_lead(watch, hit, post)
         contact = (watch.get("contact") or "").strip()
         link = None
-        if is_email(contact):
+        if is_email(contact) and not contact_registrant:
+            result["channel"] = "email (NOT sent: your decision)"
+        elif is_email(contact):
             result["channel"] = "email"
             result["email"] = send_email(
                 contact, "عربتي وين؟ — ظهر الرقم الذي سجّلته / Arabati Wein: your number appeared",
@@ -313,7 +324,8 @@ def notify_watch_hit(watch: dict, hit: dict, conn) -> dict:
             result["channel"] = "whatsapp" if link else "none"
         _append_outbox(watch, hit, post, link, message)
         result["outbox"] = True
-        result["telegram"] = send_telegram(_operator_text(watch, hit, post, result["channel"], link))
+        result["telegram"] = send_telegram(_operator_text(watch, hit, post, result["channel"], link,
+                                                          verdict_note))
         log(f"lead {watch.get('identifier')} post {hit.get('post_id')}: {result}")
     except Exception as e:
         log(f"notify_watch_hit failed: {e}")

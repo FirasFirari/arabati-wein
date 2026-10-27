@@ -55,6 +55,10 @@ def main() -> None:
         ("chassis watch, suffix of long VIN",  tail, vin, None, True),
         ("chassis watch, Arabic digits",       "٧٦١٤٣٣٧", "7614337", None, True),
         ("chassis watch, unrelated",           "480966", "123456", None, False),
+        ("VIN watch vs its 8-char make/model prefix (2026-10-27 false lead)",
+                                               "JMYSTCY4AGU734284", "JMYSTCY4", None, False),
+        ("VIN watch vs a sister car's full VIN", "JMYSTCY4AGU734284", "JMYSTCY4AGU735053", None, False),
+        ("numeric fragment with 6 digits still counts", "707494", "7074941", None, True),
     ]
 
     # (label, watch identifier, raw token, should match?)
@@ -64,6 +68,8 @@ def main() -> None:
         ("chassis in raw text",                      "480966", "480966", True),
         ("chassis, leading zero dropped",            "098939", "98939", True),
         ("phone number never counts",                "2345678", "0912345678", False),
+        ("VIN prefix token in alt-text (2026-10-27)",  "JMYSTCY4AGU734284", "JMYSTCY4", False),
+        ("VIN serial tail in raw text",              "JMYSTCY4AGU734284", "AGU734284", True),
     ]
 
     plate_shaped = [

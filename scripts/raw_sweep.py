@@ -140,6 +140,11 @@ def main() -> None:
                     help="pull new watch registrations from Netlify first")
     ap.add_argument("--full", action="store_true",
                     help="ignore saved progress and sweep every post")
+    ap.add_argument("--db-scan", action="store_true",
+                    help="also match watches against the `vehicles` table (the daily "
+                         "lane passes this after scoring; hourly runs only read raw text)")
+    ap.add_argument("--no-verify", action="store_true",
+                    help="queue new hits but do not run the Claude verification now")
     args = ap.parse_args()
 
     if PAUSE_FLAG.exists():
@@ -220,6 +225,15 @@ def main() -> None:
                 new_watch_hits.append((ident, h))
                 new_lines.append(f"WATCH {ident}  post {h['post_id']}  "
                                  f"{h['why']}  [{h.get('kind')}]")
+    # --- registry (vehicles) hits: only when asked, it is a full table pass ---
+    if args.db_scan:
+        for ident, hs in watchlib.scan(conn, watches).items():
+            for h in hs:
+                pair = (ident, h["post_id"])
+                if pair not in seen and pair not in reviewed:
+                    seen.add(pair)
+                    new_watch_hits.append((ident, h))
+                    new_lines.append(f"WATCH {ident}  post {h['post_id']}  {h['why']}  [registry]")
     SEEN.write_text(json.dumps(sorted(seen), ensure_ascii=False), encoding="utf-8")
 
     swept = max_id - min(state.get("target_last_id", 0), since)
@@ -231,28 +245,31 @@ def main() -> None:
             fh.write(f"\n=== {now()} ===\n" + "\n".join(new_lines) + "\n")
         for line in new_lines:
             log("  NEW " + line)
-    # --- tell people: operator on Telegram, registrant by email or a
-    # ready-to-tap WhatsApp draft (carhunt/notify.py). Never fatal.
+    # --- new watch hits are QUEUED and read by Claude before anyone hears of
+    # them (carhunt/verify.py): the operator gets one Telegram message with
+    # the verdicts, and a lead card only for a possible sighting. Until
+    # 2026-10-27 every raw hit was alerted unverified; 174 of 175 were noise.
+    verified = {}
     try:
-        from carhunt import notify
-        by_ident = {}
-        for w in watches:
-            by_ident.setdefault(w["identifier"], []).append(w)
-        for ident, h in new_watch_hits:
-            for w in by_ident.get(ident, []):
-                res = notify.notify_watch_hit(w, h, conn)
-                log(f"  notified watch {ident} post {h['post_id']}: {res}")
+        from carhunt import notify, verify
+        queued = verify.enqueue(new_watch_hits)
+        if queued:
+            log(f"  queued {queued} new watch hit(s) for verification")
+        if not args.no_verify:
+            verified = verify.run(conn, watches)
+            if verified.get("groups") or verified.get("failed"):
+                log(f"  verification: {verified}")
         if new_target:
             notify.notify_target_hits(new_target)
     except Exception as e:
-        log(f"notify failed: {e}")
+        log(f"verify/notify failed: {e}")
     link_health(conn)
     if new_target:
         toast("CarHunt: TARGET identifier in a post",
               f"{new_target} new post(s). Check data\\raw_sweep_NEW.txt — verify by eye.")
-    elif new_watch:
-        toast("CarHunt: standing-watch lead",
-              f"{new_watch} new raw-text lead(s). Run scripts\\check_watches.py for contacts.")
+    elif verified.get("leads"):
+        toast("CarHunt: standing-watch lead (verified)",
+              f"{verified['leads']} possible sighting(s). See Telegram / data\\leads_outbox.md.")
 
 
 if __name__ == "__main__":

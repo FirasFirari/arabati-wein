@@ -139,7 +139,7 @@ def main() -> None:
             "--max-calls", str(args.calls), "--budget", "10"])
 
     reconcile(before)
-    run("raw sweep", ["scripts/raw_sweep.py", "--fetch"])
+    run("raw sweep", ["scripts/raw_sweep.py", "--fetch", "--db-scan"])
     log("=== daily free lane done ===")
 
 

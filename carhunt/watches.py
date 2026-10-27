@@ -109,7 +109,13 @@ def match_reason(qn: str, qp, chassis_norm: str, plate_norm: str):
         short, long_ = (qn, cn) if q_shorter else (cn, qn)
         if long_.endswith(short) and len(short) >= (4 if q_shorter else 5):
             return f"chassis suffix {short}"
-        if short in long_ and len(short) >= (4 if q_shorter else 6):
+        # A mid-string fragment must carry at least 5 DIGITS. Measured
+        # 2026-10-27: the 8-character VIN prefix "JMYSTCY4" (one digit) is the
+        # make+model code shared by every car of that model, and it raised 23
+        # false hits for one watch; every numeric fragment that ever fired had
+        # 6 digits, so none of those is lost.
+        if (short in long_ and len(short) >= (4 if q_shorter else 6)
+                and sum(ch.isdigit() for ch in short) >= 5):
             return f"chassis fragment {short}"
     runs = {qp} if isinstance(qp, str) else (qp or set())
     if plate_norm and plate_norm in runs:
