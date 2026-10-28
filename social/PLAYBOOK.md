@@ -24,9 +24,15 @@ Regenerate both with `python scripts\make_brand_assets.py`.
 5. **Never a phone number, never a WhatsApp number, never the family's own chassis.**
    The official route is sudanpolice.net + the Traffic Department in person. The old
    "traffic WhatsApp" number in HANDOFF's correction note is PERSONAL and must never appear.
-6. **Engagement as the Page** only on public Pages' posts (news about looted cars, the
-   state committee's announcements). Groups do not accept Pages as commenters; reply there
-   as the personal profile if at all, and only to people asking how to search.
+6. **Engagement as the Page, inside the groups.** The Page joined 11 groups on 2026-10-28
+   (every one accepted it instantly, no admin gate, unlike posts). Owner's rule: groups are
+   worked AS THE PAGE, never the personal profile. Where posts sit in an admin queue, use
+   COMMENTS instead: under a كشف or a "found" post, check the chassis tails against the DB
+   (`select count(distinct post_id) from vehicles where chassis like '%<tail>'`) and comment a
+   factual line with the deep link `https://mycarsd.online/?q=<tail>` ("this number appeared in
+   N earlier posts; see them all; document and go to Traffic; never pay"). One comment per
+   group per day, never the same wording twice, never under a scam-funnel post (they report
+   the Page).
 7. **Log everything** in `social/facebook_page_log.md`: date, where, slug, result.
 
 ## Weekly routine (15 minutes)
