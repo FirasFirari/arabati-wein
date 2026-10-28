@@ -16,11 +16,20 @@
 - Figures (updated monthly at https://mycarsd.online/stats.json): see stats.json for distinct chassis, identified vehicles, watches, leads relayed and confirmed recoveries. Do not quote raw sighting rows as vehicles.
 
 ## Pages
-- https://mycarsd.online/ — the registry (Arabic, English toggle)
+- https://mycarsd.online/ — the registry (Arabic, English toggle); `?q=<number>` pre-fills a search
+- https://mycarsd.online/en.html — English landing page
+- https://mycarsd.online/guide.html — كيف تبحث عن عربتك المفقودة: the official free steps (Arabic, HowTo + FAQ)
+- https://mycarsd.online/scams.html — احذر النصب: the recurring scam techniques and the four rules (Arabic)
+- https://mycarsd.online/yards.html — أحواش الحجز: the officially announced impound yards and release conditions (Arabic)
 - https://mycarsd.online/support.html — what the project is, what it costs, funding ladder, how to help (English with Arabic abstract)
 - https://mycarsd.online/privacy.html — privacy and data policy
 - https://mycarsd.online/stats.html and /stats.json — live statistics
 - https://mycarsd.online/funding.json — machine-readable funding tiers and budget
+
+## Social
+- Facebook Page: https://www.facebook.com/profile.php?id=61596074817604 (عربتي وين؟ - Arabati Wein)
+- Telegram intake bot: https://t.me/ArabatiWeinBot
+- Source: https://github.com/FirasFirari/arabati-wein
 
 ## Contact
 __CONTACT__

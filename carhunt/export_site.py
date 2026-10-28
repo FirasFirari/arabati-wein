@@ -23,24 +23,66 @@ from .config import PROJECT_ROOT, load_config
 
 OUT = PROJECT_ROOT / "site" / "arabati-wein.html"
 
-TEMPLATE = r"""<meta charset="utf-8">
+# The Arabic official-channels block, used twice: static HTML in #official-help
+# (for crawlers) and the JS helpHtml() literal (for the language switch).
+HELP_AR = r"""<div class="help">
+  <strong>الطرق الرسمية المجانية — تعمل حتى لو لم تجد عربتك هنا:</strong>
+  <ol>
+    <li><strong>بلّغ إلكترونياً مجاناً:</strong>
+      <a href="https://sudanpolice.net/reg/car_stealing" target="_blank" rel="noopener">sudanpolice.net/reg/car_stealing</a>
+      — البلاغ يضع <strong>حظراً قانونياً</strong> على ترخيص العربة ويدرجها في
+      منصة الإنتربول، فلا يستطيع أحد إعادة تسجيلها.</li>
+    <li><strong>اذهب بنفسك:</strong> إدارة المرور أو فرعية مكافحة سرقة السيارات
+      (المباحث) — اسأل هناك عن أحواش الحجز والمركبات المجمَّعة.
+      <strong>لا يوجد رقم واتساب رسمي</strong>، وأي حساب يقدّم نفسه على أنه كذلك
+      ليس جهة رسمية.</li>
+    <li><strong>الأحواش الرسمية تُفحص بالشاسي عند البوابة:</strong>
+      حوش المرور — شارع الأربعين، أم درمان · حوش المرور — الخرطوم بحري ·
+      أحواش لجنة سحب وتجميع المركبات بولاية الخرطوم.
+      خذ إثبات هوية ومستندات الملكية.</li>
+    <li>السجل يتحدّث باستمرار — <strong>عد وابحث مرة أخرى لاحقاً.</strong></li>
+  </ol>
+  <div class="danger-box"><strong>احذر النصب:</strong> الجهات الرسمية لا تعمل عبر
+  واتساب شخصي ولا تطلب رسوماً لـ«الإفراج» عن عربتك. لا ترسل رقم الشاسي في رسائل
+  خاصة لأي «منصة بحث»، ولا تدفع مالاً مقدماً، ولا تُملِ رمز التحقق المكوَّن من
+  ٦ أرقام لأي شخص. الاسترداد الرسمي مجاني.</div>
+</div>"""
+
+TEMPLATE = r"""<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>عربتي وين؟</title>
-<meta name="description" content="سجل عام مجاني للعربات المنهوبة والمفقودة في حرب السودان — ابحث برقم الشاسي أو اللوحة. Arabati Wein: a free public registry of vehicles looted or lost in the Sudan war; search by chassis or plate number.">
-<meta name="robots" content="index,follow">
+<title>عربتي وين؟ — ابحث عن عربتك المفقودة في السودان برقم الشاسي أو اللوحة</title>
+<meta name="description" content="سجل عام مجاني للعربات المنهوبة والمفقودة في حرب السودان: ابحث برقم الشاسي أو اللوحة في مئات آلاف الرصدات من مجموعات العربات المفقودة، وسجّل تنبيهاً إن لم تجد رقمك. Arabati Wein: free registry of vehicles looted in the Sudan war — search by chassis (VIN) or plate.">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<meta name="google-site-verification" content="-_wy_1e6CPT7JvsiJkBIEX4TUqWspxFAKwfRiZVmgMk">
 <meta http-equiv="content-language" content="ar">
+<meta name="theme-color" content="#146C7C">
 <link rel="canonical" href="https://mycarsd.online/">
 <link rel="alternate" hreflang="ar" href="https://mycarsd.online/">
+<link rel="alternate" hreflang="en" href="https://mycarsd.online/en.html">
 <link rel="alternate" hreflang="x-default" href="https://mycarsd.online/">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <meta property="og:type" content="website">
-<meta property="og:title" content="عربتي وين؟ — Arabati Wein">
+<meta property="og:title" content="عربتي وين؟ — ابحث عن عربتك المفقودة برقم الشاسي أو اللوحة">
 <meta property="og:description" content="سجل عام مجاني للعربات المنهوبة والمفقودة في حرب السودان. Free registry of vehicles looted in the Sudan war — search by chassis or plate.">
 <meta property="og:url" content="https://mycarsd.online/">
 <meta property="og:site_name" content="Arabati Wein">
 <meta property="og:locale" content="ar_SD">
 <meta property="og:locale:alternate" content="en_GB">
-<meta name="twitter:card" content="summary">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","@id":"https://mycarsd.online/#website","url":"https://mycarsd.online/","name":"Arabati Wein","alternateName":"عربتي وين؟","inLanguage":["ar","en"],"description":"Free public registry of vehicles looted or lost in the Sudan war.","publisher":{"@type":["Organization","NGO"],"@id":"https://mycarsd.online/#org","name":"Arabati Wein","url":"https://mycarsd.online/"}}</script>
+<meta property="og:image" content="https://mycarsd.online/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="عربتي وين؟ — ابحث عن عربتك المفقودة في حرب السودان برقم الشاسي أو اللوحة — mycarsd.online">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="عربتي وين؟ — Arabati Wein">
+<meta name="twitter:description" content="سجل مجاني للعربات المفقودة في حرب السودان — ابحث برقم الشاسي أو اللوحة. Free Sudan looted-car registry.">
+<meta name="twitter:image" content="https://mycarsd.online/og.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":["Organization","NGO"],"@id":"https://mycarsd.online/#org","name":"Arabati Wein","alternateName":["عربتي وين؟","Arabati Wein Registry","mycarsd.online"],"url":"https://mycarsd.online/","logo":{"@type":"ImageObject","url":"https://mycarsd.online/icon-512.png","width":512,"height":512},"image":"https://mycarsd.online/og.png","description":"A free, scam-free public registry of vehicles looted or lost in the Sudan war. Families search by chassis or plate number, register a standing watch, and are routed to the official free recovery channels.","foundingDate":"2026-08","areaServed":{"@type":"Country","name":"Sudan"},"knowsLanguage":["ar","en"],"slogan":"Where is my car?","nonprofitStatus":"https://schema.org/NonprofitType","sameAs":["https://www.facebook.com/profile.php?id=61596074817604","https://github.com/FirasFirari/arabati-wein","https://opencollective.com/arabeti-ween","https://t.me/ArabatiWeinBot"]},{"@type":"WebSite","@id":"https://mycarsd.online/#website","url":"https://mycarsd.online/","name":"Arabati Wein","alternateName":"عربتي وين؟","inLanguage":["ar","en"],"description":"Free public registry of vehicles looted or lost in the Sudan war. Search by chassis (VIN) or plate number.","publisher":{"@id":"https://mycarsd.online/#org"},"potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https://mycarsd.online/?q={search_term_string}"},"query-input":"required name=search_term_string"}},{"@type":"WebPage","@id":"https://mycarsd.online/#webpage","url":"https://mycarsd.online/","name":"عربتي وين؟ — ابحث عن عربتك المفقودة في السودان برقم الشاسي أو اللوحة","inLanguage":"ar","isPartOf":{"@id":"https://mycarsd.online/#website"},"about":{"@id":"https://mycarsd.online/#org"},"primaryImageOfPage":"https://mycarsd.online/og.png"}]}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Amiri:wght@700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 :root {
@@ -204,7 +246,8 @@ details.sources li a:hover { text-decoration: underline; }
   margin: 18px 0; padding: 16px 18px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--card);
 }
-.watch h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.watch h2 { margin: 0 0 6px; font-size: 1.05rem; font-family: inherit; color: inherit; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .watch p { margin: 6px 0 12px; color: var(--muted); font-size: .92rem; line-height: 1.6; }
 .watch label { display: block; margin: 10px 0 4px; font-size: .9rem; font-weight: 600; }
 .watch input[type=text], .watch input[type=tel] {
@@ -230,6 +273,12 @@ details.sources li a:hover { text-decoration: underline; }
   padding: 14px 18px; font-size: .88rem; color: var(--muted); background: var(--surface);
 }
 .notice strong { color: var(--ink); }
+#site-links a.fb, #site-links button.share {
+  display: inline-block; margin: 4px 6px; padding: 8px 16px; border-radius: 8px;
+  font: inherit; font-size: .92rem; text-decoration: none; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
+}
+#site-links button.share { background: var(--surface); color: var(--accent); }
 a.plain { color: var(--accent); }
 #lang-toggle {
   float: left; font-family: inherit; font-size: .85rem; padding: 6px 16px;
@@ -289,6 +338,8 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
   @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
 }
 </style>
+</head>
+<body>
 <div class="wrap" dir="rtl" lang="ar">
 <header>
   <button id="lang-toggle" type="button">English</button>
@@ -304,6 +355,7 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
      title; the stats and sources moved BELOW it, and the filters are folded
      away until asked for. -->
 <div class="searchbox">
+  <h2 class="vh" id="h-search">البحث في سجل العربات المفقودة برقم الشاسي أو اللوحة</h2>
   <label class="ask" id="ask" for="q">اكتب رقم الشاسي أو اللوحة
     <span dir="ltr">/ Enter your chassis or plate number</span></label>
   <!-- NOT disabled while the payload loads. It used to be, and on Sudanese
@@ -339,6 +391,7 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
   <div class="chipbar" id="chipbar"></div>
 </div>
 
+<h2 class="vh" id="h-coverage">تغطية السجل والمصادر التي يُفحص منها</h2>
 <div class="coverage" id="coverage"></div>
 <details class="sources">
   <summary id="sources-summary">المصادر التي يتم فحصها</summary>
@@ -360,7 +413,7 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
      collects nothing. Do not move this into innerHTML.
      It is revealed only when a search returns zero results. -->
 <div class="watch" id="watch-box" hidden>
-  <h3>لم نجد الرقم — سجّل تنبيهاً</h3>
+  <h2>لم نجد الرقم — سجّل تنبيهاً</h2>
   <p>
     السجل يكبر يومياً. اترك رقم الشاسي أو اللوحة ووسيلة تواصل، وإذا ظهر هذا
     الرقم في أي منشور لاحقاً سنبلغك.
@@ -413,13 +466,24 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
   أخطاء في الأرقام — راجع المنشور الأصلي قبل الاعتماد عليها.
   <span dir="ltr">Records marked "من صورة" were read from a photo by a vision model and may
   contain transcription errors — always check the original post.</span>
-  <div id="official-help"></div>
+  <!-- Rendered statically so crawlers and link previews see the official
+       channels; applyLang() rewrites it with the same helpHtml() on load. -->
+  <div id="official-help"><br>__HELP_AR__</div>
   <br>آخر تحديث: <span id="upd">__UPDATED__</span></div>
 <!-- Outside #notice-box on purpose: the language switch rewrites that box wholesale. -->
 <div class="notice" id="site-links" style="text-align:center">
+  <h2 class="vh">صفحات الموقع</h2>
+  <a href="/guide.html">كيف تبحث عن عربتك المفقودة</a> ·
+  <a href="/scams.html">احذر النصب</a> ·
+  <a href="/yards.html">أحواش الحجز</a> ·
+  <a href="/en.html">English</a>
+  <br>
   <a href="/support.html">ادعم المشروع · Support the project</a> ·
   <a href="/stats.html">الإحصاءات · Statistics</a> ·
   <a href="/privacy.html">الخصوصية · Privacy</a>
+  <br><br>
+  <a class="fb" href="https://www.facebook.com/profile.php?id=61596074817604" target="_blank" rel="noopener">تابعنا على فيسبوك · Follow on Facebook</a>
+  <button type="button" class="share" id="share-btn">شارك الموقع · Share</button>
 </div>
 </div>
 
@@ -645,6 +709,10 @@ const CORE_URL = '__CORE_URL__';
 const DETAIL_URL = '__DETAIL_URL__';
 let READY = false, GAVE_UP = false;
 const $q0 = document.getElementById('q');
+// ?q=<number> pre-fills the box: the schema.org SearchAction target, and what a
+// link from the Facebook Page or a chat message carries. render() reads the box
+// the moment the data lands, so nothing else is needed.
+try { const qp = new URLSearchParams(location.search).get('q'); if (qp && !$q0.value) $q0.value = qp.trim().slice(0, 80); } catch (e) {}
 const $st0 = document.getElementById('stats');
 let dlGot = 0, dlTotal = 0, dlParsing = false;
 const pct = (got, total) => got
@@ -670,6 +738,7 @@ document.getElementById('lang-toggle').addEventListener('click', () => {
     const en = LANG === 'en', w = document.querySelector('.wrap');
     w.dir = en ? 'ltr' : 'rtl';
     w.lang = en ? 'en' : 'ar';
+    document.documentElement.dir = w.dir; document.documentElement.lang = w.lang;
     document.getElementById('lang-toggle').textContent = en ? 'عربي' : 'English';
     try { localStorage.setItem('lang', LANG); } catch (e) {}
     showLoading();
@@ -836,28 +905,7 @@ function renderCoverage() {
 }
 
 // ---- official free channels + scam warning (empty state AND footer) ----
-const helpHtml = () => LANG === 'en' ? EN.helpHtml : `<div class="help">
-  <strong>الطرق الرسمية المجانية — تعمل حتى لو لم تجد عربتك هنا:</strong>
-  <ol>
-    <li><strong>بلّغ إلكترونياً مجاناً:</strong>
-      <a href="https://sudanpolice.net/reg/car_stealing" target="_blank" rel="noopener">sudanpolice.net/reg/car_stealing</a>
-      — البلاغ يضع <strong>حظراً قانونياً</strong> على ترخيص العربة ويدرجها في
-      منصة الإنتربول، فلا يستطيع أحد إعادة تسجيلها.</li>
-    <li><strong>اذهب بنفسك:</strong> إدارة المرور أو فرعية مكافحة سرقة السيارات
-      (المباحث) — اسأل هناك عن أحواش الحجز والمركبات المجمَّعة.
-      <strong>لا يوجد رقم واتساب رسمي</strong>، وأي حساب يقدّم نفسه على أنه كذلك
-      ليس جهة رسمية.</li>
-    <li><strong>الأحواش الرسمية تُفحص بالشاسي عند البوابة:</strong>
-      حوش المرور — شارع الأربعين، أم درمان · حوش المرور — الخرطوم بحري ·
-      أحواش لجنة سحب وتجميع المركبات بولاية الخرطوم.
-      خذ إثبات هوية ومستندات الملكية.</li>
-    <li>السجل يتحدّث باستمرار — <strong>عد وابحث مرة أخرى لاحقاً.</strong></li>
-  </ol>
-  <div class="danger-box"><strong>احذر النصب:</strong> الجهات الرسمية لا تعمل عبر
-  واتساب شخصي ولا تطلب رسوماً لـ«الإفراج» عن عربتك. لا ترسل رقم الشاسي في رسائل
-  خاصة لأي «منصة بحث»، ولا تدفع مالاً مقدماً، ولا تُملِ رمز التحقق المكوَّن من
-  ٦ أرقام لأي شخص. الاسترداد الرسمي مجاني.</div>
-</div>`;
+const helpHtml = () => LANG === 'en' ? EN.helpHtml : `__HELP_AR__`;
 
 // ---- one dossier card: identity header + sighting timeline ----
 // A row stands for every copy of the same line (export_site merges reposts);
@@ -1450,6 +1498,13 @@ $q.addEventListener('focus', () => $searchbox.classList.add('active'));
 $q.addEventListener('blur', () => $searchbox.classList.remove('active'));
 // The "N vehicles — enter your number" status line drew taps too.
 document.getElementById('stats').addEventListener('click', () => $q.focus());
+document.getElementById('share-btn').addEventListener('click', async () => {
+  const url = 'https://mycarsd.online/?utm_source=share&utm_medium=button';
+  const title = 'عربتي وين؟ — ابحث عن عربتك المفقودة برقم الشاسي أو اللوحة';
+  track('share_click');
+  if (navigator.share) { try { await navigator.share({ title, url }); return; } catch (e) {} }
+  window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url), '_blank', 'noopener');
+});
 F.sort.addEventListener('change', () => track('sort_change', { sort_mode: F.sort.value }));
 for (const el of [F.model, F.color, F.status, F.location])
   el.addEventListener('change', () => { if (el.value) track('filter_use'); });
@@ -1481,6 +1536,7 @@ function applyLang() {
   nf = nf0();
   wrapEl.dir = en ? 'ltr' : 'rtl';
   wrapEl.lang = en ? 'en' : 'ar';
+  document.documentElement.dir = wrapEl.dir; document.documentElement.lang = wrapEl.lang;
   document.getElementById('lang-toggle').textContent = en ? 'عربي' : 'English';
   document.getElementById('sub').innerHTML = en ? EN.sub : ORIG.sub;
   document.getElementById('hint').textContent = en ? EN.hint : ORIG.hint;
@@ -1552,6 +1608,8 @@ function showDetailStatus(got, total, parsing) {
 })();
 
 </script>
+</body>
+</html>
 """
 
 
@@ -1646,6 +1704,7 @@ def fill_template(*, stats_js: str, fbkind_js: str, core_url: str,
             .replace("__SRCNAMES__", js_literal(source_names()))
             .replace("__CORE_URL__", core_url)
             .replace("__DETAIL_URL__", detail_url)
+            .replace("__HELP_AR__", HELP_AR)
             .replace("__UPDATED__", updated))
 
 

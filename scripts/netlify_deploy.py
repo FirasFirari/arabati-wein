@@ -167,6 +167,11 @@ def main() -> None:
                             "files": {p: s for p, (s, _) in files.items()},
                             "functions": {n: s for n, (s, _) in funcs.items()}}, indent=1),
                 encoding="utf-8")
+            try:
+                import indexnow
+                indexnow.submit()
+            except Exception as e:  # a ping failure must never fail a deploy
+                print(f"indexnow: skipped ({e})")
             return
         time.sleep(5)
     print("\nstill processing after 5 minutes; check the Netlify Deploys page")

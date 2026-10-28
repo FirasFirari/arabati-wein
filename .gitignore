@@ -58,3 +58,4 @@ __pycache__/
 *.pid
 *.err
 *.jsonl
+site/static/indexnow-key.txt

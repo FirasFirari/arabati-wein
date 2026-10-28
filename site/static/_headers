@@ -8,3 +8,13 @@
 /funding.json
   Cache-Control: public, max-age=3600
   Access-Control-Allow-Origin: *
+
+/*.png
+  Cache-Control: public, max-age=86400
+
+/favicon.ico
+  Cache-Control: public, max-age=86400
+
+/site.webmanifest
+  Content-Type: application/manifest+json; charset=utf-8
+  Cache-Control: public, max-age=86400
