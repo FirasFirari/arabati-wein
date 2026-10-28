@@ -15,13 +15,17 @@ Without a token you can still do this by hand: export the CSV from
 https://app.netlify.com/projects/mycarsd/forms and save it as
 `data/watches.csv`. Everything downstream reads either file.
 
-NEW REGISTRATIONS -> TELEGRAM (since 2026-10-20). Every submission that was
-not in the previous data/watches.json is announced to the operator's Telegram
-chat (carhunt.notify.send_telegram, one message per fetch). The message carries
-the identifier, the note and the contact TYPE only, never the contact itself;
-the Netlify email and check_watches.py have the number. The first fetch on a
-machine with no watches.json is a silent baseline, so a wiped file cannot
-replay 60 alerts. --no-notify suppresses it for manual re-pulls.
+NEW REGISTRATIONS -> TELEGRAM. Since 2026-10-28 the INSTANT alert comes from
+Netlify itself: site/functions/submission-created.js runs the moment a
+submission lands and messages the operator's chat, PC on or off. This script
+therefore no longer announces by default (it would be a duplicate up to an
+hour late). --notify turns the old per-fetch announcement back on - the
+fallback if the function is ever broken (check: scripts/netlify_set_telegram_env.py
+--show lists its secrets; the Netlify Functions log shows its runs). Either
+way the message carries the identifier, the note and the contact TYPE only,
+never the contact itself; the Netlify email and check_watches.py have the
+number. The first fetch on a machine with no watches.json is a silent
+baseline, so a wiped file cannot replay 60 alerts.
 
 SUBMISSIONS CARRY PHONE NUMBERS. The JSON this writes is personal data; `data/`
 is gitignored, keep it that way and never paste its contents anywhere public.
@@ -139,8 +143,11 @@ def main() -> None:
     ap.add_argument("--check", action="store_true",
                     help="after fetching, match the watches against the "
                          "registry and print who to contact")
+    ap.add_argument("--notify", action="store_true",
+                    help="announce new registrations on Telegram from here too "
+                         "(normally the Netlify function already did, instantly)")
     ap.add_argument("--no-notify", action="store_true",
-                    help="do not announce new registrations on Telegram")
+                    help="(kept for old callers; announcing is already off by default)")
     args = ap.parse_args()
 
     token = load_token()
@@ -187,7 +194,7 @@ def main() -> None:
     new_rows = [] if previous is None else [r for r in rows if _key(r) not in previous]
     if new_rows:
         print(f"{len(new_rows)} new registration(s) since the last fetch")
-    if new_rows and not args.no_notify:
+    if new_rows and args.notify and not args.no_notify:
         announce_new(new_rows, len(rows))
 
     if args.check:

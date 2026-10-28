@@ -92,7 +92,10 @@ API. `verify_deploy.py` checks the live site afterwards.
 ## 7. Standing watches and notifications (`carhunt/watches.py`, `scripts/raw_sweep.py`, `carhunt/notify.py`)
 
 A visitor whose search returns nothing can leave a chassis or plate and a
-contact (Netlify Forms). Hourly, `raw_sweep.py` pulls new registrations and
+contact (Netlify Forms). The moment a submission lands, the Netlify function
+`site/functions/submission-created.js` announces it to the operator on Telegram
+(PC on or off; deployed with every `netlify_deploy.py` run). Hourly,
+`raw_sweep.py` pulls the registrations and
 checks the configured car **and every watch** against raw post text plus OCR,
 which is current the moment a post is stored. A new hit produces: a Telegram
 message to the operator, a ready-to-tap WhatsApp draft (or an email) for the

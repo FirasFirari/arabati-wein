@@ -28,6 +28,7 @@ Credentials live in `config.yaml` or the environment, never in code:
 | Watchdog (5 min) | `python -m carhunt.watchdog` | `data/logs/watchdog.log` |
 | Dashboard | `python -m carhunt.dashboard` → http://localhost:8770 | `data/logs/dashboard.log` |
 | Raw sweep (hourly) | `scripts\raw_sweep.py --fetch` | `data/logs/raw_sweep.log`, `data/logs/notify.log` |
+| New-registration alert (instant, on Netlify) | `site/functions/submission-created.js`; secrets via `scripts\netlify_set_telegram_env.py` | Netlify > Functions > submission-created |
 | Daily free lane (12:00) | `scripts\daily_free_lane.py` | `data/logs/daily_free_lane.log` |
 
 Pause and resume everything: `scripts\carhunt_control.ps1 status|pause|resume [-Light]`.
