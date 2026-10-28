@@ -2,6 +2,8 @@
 
 **A free, scam-free public registry of vehicles looted or lost in the Sudan war.**
 Live at **https://mycarsd.online** · support and funding: https://mycarsd.online/support.html
+Facebook Page: https://www.facebook.com/profile.php?id=61596074817604 · English: https://mycarsd.online/en.html
+Guides (Arabic): [how to search for your car](https://mycarsd.online/guide.html) · [scams to avoid](https://mycarsd.online/scams.html) · [impound yards](https://mycarsd.online/yards.html)
 
 When Khartoum emptied in 2023, cars were taken by the hundreds of thousands.
 They surface again in police yards, in field volunteers' lists, in recovery
