@@ -4,6 +4,9 @@ then republish the artifact.
 
 Usage:
     python -m carhunt.export_site
+    python -m carhunt.export_site --ui-only   # re-fill the template around the
+                                              # CURRENT payload: no DB pass, no RAM,
+                                              # core.bin/detail.bin stay byte-identical
 """
 import base64
 import datetime
@@ -12,9 +15,11 @@ import hashlib
 import json
 import re
 
+import sys
+
 from . import db
 from .aliases import ALIASES
-from .config import PROJECT_ROOT
+from .config import PROJECT_ROOT, load_config
 
 OUT = PROJECT_ROOT / "site" / "arabati-wein.html"
 
@@ -142,6 +147,12 @@ details.sources li {
 }
 details.sources li b { color: var(--ink); font-weight: 500; }
 details.sources li span { font-variant-numeric: tabular-nums; }
+/* Clarity 2026-10-28: source names drew more dead taps than anything else on
+   the page (8 of 28) — people expect the group or channel to open. Now it does. */
+details.sources li a { color: var(--accent); font-weight: 500; text-decoration: none; }
+details.sources li a:hover { text-decoration: underline; }
+.searchbox.active .ask { color: var(--accent); }
+.watch .consent.on span { color: var(--ink); }
 .chipbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chipbar .f {
   font-size: .78rem; padding: 3px 10px; border-radius: 999px;
@@ -515,6 +526,7 @@ const t = (key, ar) => (LANG === 'en' ? (EN[key] ?? ar) : ar);
 const ALIASES = __ALIASES__;
 const STATS = __STATS__;
 const FBKIND = __FBKIND__;   // facebook source id -> "g" group | "p" profile/page
+const SRCNAME = __SRCNAMES__; // facebook source id -> group name (config.yaml)
 
 const AR_DIGITS = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9',
                    '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'};
@@ -786,7 +798,20 @@ const SOURCE_LABEL = { 'telegram': 'تلجرام', 'facebook': 'فيسبوك', '
 function prettySource(name) {
   const [kind, rest] = String(name).split(':');
   const label = t('src_' + kind, SOURCE_LABEL[kind] || kind);
-  return rest ? `${label} · ${rest}` : label;
+  const nice = kind === 'facebook' ? (SRCNAME[rest] || rest) : rest;
+  return nice ? `${label} · ${nice}` : label;
+}
+// Where a source lives. Facebook ids are groups unless the saved links say
+// profile (FBKIND); Telegram names are public channels; direct reports have no
+// page to open.
+function sourceUrl(name) {
+  const [kind, rest] = String(name).split(':');
+  if (!rest) return null;
+  if (kind === 'telegram') return `https://t.me/${rest}`;
+  if (kind === 'facebook') return FBKIND[rest] === 'p'
+    ? `https://www.facebook.com/profile.php?id=${rest}`
+    : `https://www.facebook.com/groups/${rest}`;
+  return null;
 }
 function renderCoverage() {
   document.getElementById('coverage').innerHTML = [
@@ -801,9 +826,13 @@ function renderCoverage() {
   document.getElementById('sources-summary').textContent = LANG === 'en'
     ? `Monitored sources (${nf.format(STATS.sources.length)}) — ${nf.format(STATS.posts)} posts collected`
     : `المصادر التي يتم فحصها (${nf.format(STATS.sources.length)}) — إجمالي ${nf.format(STATS.posts)} منشور مجموع`;
-  document.getElementById('sources-list').innerHTML = STATS.sources.map(x =>
-    `<li><b>${esc(prettySource(x.name))}</b><span>${nf.format(x.posts)}</span></li>`
-  ).join('');
+  document.getElementById('sources-list').innerHTML = STATS.sources.map(x => {
+    const url = sourceUrl(x.name), lbl = esc(prettySource(x.name));
+    const name = url
+      ? `<a href="${url}" target="_blank" rel="noopener">${lbl} ↗</a>`
+      : `<b>${lbl}</b>`;
+    return `<li>${name}<span>${nf.format(x.posts)}</span></li>`;
+  }).join('');
 }
 
 // ---- official free channels + scam warning (empty state AND footer) ----
@@ -1283,6 +1312,34 @@ if ($watchForm) {
   const idField = document.getElementById('w-id');
   if (idField) idField.addEventListener('input', () => { idField.dataset.touched = '1'; });
 
+  // Clarity 2026-10-28: taps on "سجّل التنبيه / Register" were logged as dead.
+  // A `required` field that is empty makes the browser show a small native
+  // bubble and nothing else — on a phone that is easy to miss. Name the
+  // missing field in the message area instead.
+  const W_LABEL = {
+    'w-id': ['رقم الشاسي أو اللوحة', 'the chassis or plate number'],
+    'w-contact': ['وسيلة التواصل', 'a way to reach you'],
+    'w-consent': ['الموافقة على حفظ البيانات', 'the consent box'],
+  };
+  let _invalid = [];
+  $watchForm.addEventListener('invalid', (e) => {
+    _invalid.push(e.target.id);
+    if (_invalid.length > 1) return;   // one message, for the first field in form order
+    queueMicrotask(() => {
+      const first = _invalid[0]; _invalid = [];
+      const [ar, en] = W_LABEL[first] || ['الحقل المطلوب', 'the required field'];
+      $watchMsg.className = 'watch-msg err';
+      $watchMsg.innerHTML = `أكمل ${ar} ثم اضغط «سجّل التنبيه».` +
+        `<br><span dir="ltr">Fill in ${en}, then tap Register.</span>`;
+      track('watch_invalid', { field: first });
+    });
+  }, true);
+  const consent = document.getElementById('w-consent');
+  if (consent) consent.addEventListener('change', () => {
+    consent.closest('.consent').classList.toggle('on', consent.checked);
+    if (consent.checked && $watchMsg.classList.contains('err')) $watchMsg.textContent = '';
+  });
+
   $watchForm.addEventListener('submit', async (e) => {
     e.preventDefault();          // stay on the page; a redirect would lose the search
     const btn = document.getElementById('w-submit');
@@ -1381,6 +1438,18 @@ document.getElementById('coverage').addEventListener('click', e => {
   src.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   track('coverage_tap');
 });
+document.getElementById('sources-list').addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('a')) track('source_open');
+});
+// The prompt and hint are <label for="q">, so a tap already focuses the box —
+// but focus changes no DOM node, and Clarity counted those taps as dead
+// (2026-10-28 heatmap). Mirror focus in a class: a visible cue for the
+// visitor, and the heatmap stops reporting a working control as broken.
+const $searchbox = document.querySelector('.searchbox');
+$q.addEventListener('focus', () => $searchbox.classList.add('active'));
+$q.addEventListener('blur', () => $searchbox.classList.remove('active'));
+// The "N vehicles — enter your number" status line drew taps too.
+document.getElementById('stats').addEventListener('click', () => $q.focus());
 F.sort.addEventListener('change', () => track('sort_change', { sort_mode: F.sort.value }));
 for (const el of [F.model, F.color, F.status, F.location])
   el.addEventListener('change', () => { if (el.value) track('filter_use'); });
@@ -1512,6 +1581,115 @@ def redact_personal(description):
     if any(m in low for m in _DOC_MARKERS):
         return _REDACTED
     return description
+
+
+def js_literal(obj) -> str:
+    """JSON safe to embed inside a <script> element.
+
+    json.dumps leaves '<' untouched, so a scraped post containing
+    "</script>" would close the tag and inject markup into the published
+    page. Escaping the three characters that can break out of a script
+    context keeps the payload inert while staying valid JSON.
+    """
+    return (json.dumps(obj, ensure_ascii=False)
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026"))
+
+
+def source_names() -> dict:
+    """Facebook group id -> readable name, from config.yaml.
+
+    The registry stores sources as `facebook:<numeric id>`, which is what the
+    page used to print. Member counts and notes in the configured name
+    ("... (128K)", "... — was listed as ...") are trimmed off.
+    """
+    out = {}
+    cfg = load_config()
+    for g in ((cfg.get("facebook") or {}).get("groups") or []):
+        gid = str(g.get("id") or "").strip()
+        name = " ".join(str(g.get("name") or "").split())
+        name = name.split(" — ")[0]
+        name = re.sub(r"\s*\([^()]*\)\s*$", "", name).strip()
+        if gid and name and not name.startswith("("):
+            out[gid] = name
+    return out
+
+
+def clarity_snippet() -> str:
+    cid_file = OUT.parent / "clarity_id.txt"
+    if not cid_file.exists():
+        return ""
+    cid = cid_file.read_text(encoding="utf-8").strip()
+    if not cid:
+        return ""
+    # hostname-gated: the artifact copy and localhost stay untracked
+    return (
+        '<script>\n'
+        'if (/(^|\\.)mycarsd\\.(online|netlify\\.app)$/.test(location.hostname)) {\n'
+        '  (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};\n'
+        '   t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;\n'
+        '   y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);\n'
+        '  })(window, document, "clarity", "script", "' + cid + '");\n'
+        '}\n'
+        '</script>'
+    )
+
+
+def fill_template(*, stats_js: str, fbkind_js: str, core_url: str,
+                  detail_url: str, updated: str) -> str:
+    return (TEMPLATE
+            .replace("__CLARITY__", clarity_snippet())
+            .replace("__ALIASES__", js_literal(ALIASES))
+            .replace("__STATS__", stats_js)
+            .replace("__FBKIND__", fbkind_js)
+            .replace("__SRCNAMES__", js_literal(source_names()))
+            .replace("__CORE_URL__", core_url)
+            .replace("__DETAIL_URL__", detail_url)
+            .replace("__UPDATED__", updated))
+
+
+def rebuild_ui() -> None:
+    """Rebuild the page shell around the payload that is ALREADY built.
+
+    Reads the embedded constants back out of site/arabati-wein.html and
+    re-fills TEMPLATE with them, so a markup/script/CSS change ships without
+    the 3-minute, multi-GB database pass. core.bin and detail.bin are not
+    touched and keep their ?v= hashes, which build_deploy.py checks.
+
+    Every pattern is single-line on purpose: with re.S the lazy `const X =`
+    match once swallowed half the file (143K chars instead of 70K).
+    """
+    if not OUT.exists():
+        sys.exit(f"{OUT} does not exist — run a full export first")
+    html = OUT.read_text(encoding="utf-8")
+
+    def grab(pattern: str) -> str:
+        m = re.search(pattern, html, re.M)
+        if not m:
+            sys.exit(f"--ui-only: cannot find {pattern!r} in {OUT.name}; run a full export")
+        return m.group(1)
+
+    out = fill_template(
+        stats_js=grab(r"^const STATS = (.*);$"),
+        fbkind_js=grab(r"^const FBKIND = (\{.*\});   // facebook"),
+        core_url=grab(r"^const CORE_URL = '(core\.bin\?v=[0-9a-f]{12})';$"),
+        detail_url=grab(r"^const DETAIL_URL = '(detail\.bin\?v=[0-9a-f]{12})';$"),
+        updated=grab(r'<span id="upd">(\d{4}-\d{2}-\d{2})</span>'),
+    )
+    for name in ("core.bin", "detail.bin"):
+        blob = OUT.parent / name
+        if not blob.exists():
+            sys.exit(f"{blob} is missing — the page would point at nothing")
+        want = hashlib.sha1(blob.read_bytes()).hexdigest()[:12]
+        if f"{name}?v={want}" not in out:
+            sys.exit(f"{name} on disk (v={want}) is not the build the page embeds; run a full export")
+    leftover = re.findall(r"__[A-Z_]+__", out)
+    if leftover:
+        sys.exit(f"--ui-only: unfilled tokens {sorted(set(leftover))}")
+    OUT.write_text(out, encoding="utf-8")
+    print(f"Rebuilt {OUT} ({OUT.stat().st_size/1024:.0f} KB shell) around the existing "
+          f"core.bin/detail.bin — no data change")
 
 
 def main() -> None:
@@ -1810,19 +1988,6 @@ def main() -> None:
         },
     }
 
-    def js_literal(obj) -> str:
-        """JSON safe to embed inside a <script> element.
-
-        json.dumps leaves '<' untouched, so a scraped post containing
-        "</script>" would close the tag and inject markup into the published
-        page. Escaping the three characters that can break out of a script
-        context keeps the payload inert while staying valid JSON.
-        """
-        return (json.dumps(obj, ensure_ascii=False)
-                .replace("<", "\\u003c")
-                .replace(">", "\\u003e")
-                .replace("&", "\\u0026"))
-
     stats = db.registry_stats()
 
     # Facebook source -> "g" (group) or "p" (profile/page), read off the links
@@ -1841,22 +2006,6 @@ def main() -> None:
         con.close()
     fb_kind = {gid: ("g" if g >= p else "p") for gid, (g, p) in fb_votes.items()}
 
-    clarity_html = ""
-    cid_file = OUT.parent / "clarity_id.txt"
-    if cid_file.exists():
-        cid = cid_file.read_text(encoding="utf-8").strip()
-        if cid:
-            # hostname-gated: the artifact copy and localhost stay untracked
-            clarity_html = (
-                '<script>\n'
-                'if (/(^|\\.)mycarsd\\.(online|netlify\\.app)$/.test(location.hostname)) {\n'
-                '  (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};\n'
-                '   t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;\n'
-                '   y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);\n'
-                '  })(window, document, "clarity", "script", "' + cid + '");\n'
-                '}\n'
-                '</script>'
-            )
     # The payloads live beside the page, not inside it, so the shell paints
     # before the registry has downloaded. Gzipped here rather than left to the
     # server: that guarantees the wire size regardless of host config, and
@@ -1880,14 +2029,10 @@ def main() -> None:
     core_url = f"core.bin?v={hashlib.sha1(core_blob).hexdigest()[:12]}"
     detail_url = f"detail.bin?v={hashlib.sha1(detail_blob).hexdigest()[:12]}"
 
-    html = (TEMPLATE
-            .replace("__CLARITY__", clarity_html)
-            .replace("__ALIASES__", js_literal(ALIASES))
-            .replace("__STATS__", js_literal(stats))
-            .replace("__FBKIND__", js_literal(fb_kind))
-            .replace("__CORE_URL__", core_url)
-            .replace("__DETAIL_URL__", detail_url)
-            .replace("__UPDATED__", datetime.date.today().isoformat()))
+    html = fill_template(
+        stats_js=js_literal(stats), fbkind_js=js_literal(fb_kind),
+        core_url=core_url, detail_url=detail_url,
+        updated=datetime.date.today().isoformat())
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(html, encoding="utf-8")
     (OUT.parent / "core.bin").write_bytes(core_blob)
@@ -1908,4 +2053,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if "--ui-only" in sys.argv[1:]:
+        rebuild_ui()
+    else:
+        main()
