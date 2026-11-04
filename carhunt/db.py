@@ -155,7 +155,18 @@ def init() -> None:
                     # a searching family as a precise chassis number. Holds the
                     # reason, so the caveat travels with the doubt.
                     "ALTER TABLE vehicles ADD COLUMN low_confidence TEXT",
-                    "CREATE INDEX IF NOT EXISTS idx_posts_hash ON posts(content_hash)"):
+                    "CREATE INDEX IF NOT EXISTS idx_posts_hash ON posts(content_hash)",
+                    # Photo OCR. These used to be added only by the old Vision
+                    # sweep script, so a fresh install had no ocr_text at all.
+                    # media.ocr_text is DATABASE-ONLY: it holds registration-card
+                    # text (owner names, addresses) and is never exported.
+                    "ALTER TABLE media ADD COLUMN ocr_text TEXT",
+                    "ALTER TABLE media ADD COLUMN ocr_at TEXT",
+                    "ALTER TABLE media ADD COLUMN ocr_error TEXT",
+                    "ALTER TABLE media ADD COLUMN ocr_engine TEXT",
+                    "ALTER TABLE media ADD COLUMN sha1 TEXT",
+                    "CREATE INDEX IF NOT EXISTS idx_media_ocr ON media(ocr_at)",
+                    "CREATE INDEX IF NOT EXISTS idx_media_sha1 ON media(sha1)"):
             try:
                 conn.execute(ddl)
             except sqlite3.OperationalError as exc:

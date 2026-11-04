@@ -36,10 +36,17 @@ QUALITY GUARDS.
 Re-reads rows the local RapidOCR engine wrote (ocr_engine LIKE 'rapidocr%').
 Order: photos from recovery-list posts first, then newest. Stops on
 data/PAUSED or data/PAUSED_LIGHT.
+
+ONE READ PER IMAGE (2026-11-04). Files are hashed (media.sha1); an image is
+read once and its text is copied to every byte-identical copy, and copies of
+images already read get their text at zero calls. 75% of the unread backlog
+was copies. A 503 spell rests the run and retries the same batch instead of
+ending it. No database lock is held across an API call.
 """
 import argparse
 import base64
 import datetime
+import hashlib
 import json
 import re
 import sqlite3
@@ -56,6 +63,8 @@ except Exception:
 
 from openai import OpenAI
 
+from carhunt import db
+from carhunt import vin as vinlib
 from carhunt.config import load_config
 
 DATA = ROOT / "data"
@@ -287,16 +296,22 @@ def compare(first: str, second: str) -> bool:
 
 def catch_up(conn, verifier: Verifier, deadline) -> None:
     """Spend spare verifier quota on photos stored '+unverified' earlier.
-    Verifier quota is daily and small (~20/model), so a run that found every
-    verifier busy leaves rows behind; this is where they get their check."""
+
+    Verifier quota is daily and small (~20/model), so it goes to the reads
+    most likely to be WRONG first (carhunt/vin.second_read_risk): a Toyota or
+    Hyundai VIN failing its check digit, then I/O/Q, then weak families, and
+    passing reads last. Measured: verified reads pass the check digit 99% of
+    the time, single reads 92%. A verdict lands on every byte-identical copy.
+    """
     rows = conn.execute(
-        "SELECT path, group_concat(id), max(ocr_text), max(ocr_engine) FROM media "
-        "WHERE ocr_engine LIKE '%+unverified' GROUP BY path ORDER BY max(post_id) DESC"
-    ).fetchall()
+        "SELECT min(path), group_concat(id), max(ocr_text), max(ocr_engine), max(post_id) "
+        "FROM media WHERE ocr_engine LIKE '%+unverified' "
+        "GROUP BY COALESCE(NULLIF(sha1, ''), path)").fetchall()
     if not rows:
         return
+    rows.sort(key=lambda r: (vinlib.second_read_risk(r[2]), -(r[4] or 0)))
     ok = bad = 0
-    for path, ids, text, engine in rows:
+    for path, ids, text, engine, _ in rows:
         if not verifier.available() or (deadline and time.time() > deadline) or paused():
             break
         try:
@@ -315,23 +330,112 @@ def catch_up(conn, verifier: Verifier, deadline) -> None:
             new_text = f"{text}\n--- second read ({vmodel}) ---\n{vtext}"
             tag = base + "+disagree"
             bad += 1
-        conn.executemany("UPDATE media SET ocr_text=?, ocr_engine=? WHERE id=?",
-                         [(new_text, tag, int(i)) for i in ids.split(",")])
-        conn.commit()
+        with db.write_tx() as w:
+            w.executemany("UPDATE media SET ocr_text=?, ocr_engine=? WHERE id=?",
+                          [(new_text, tag, int(i)) for i in ids.split(",")])
     if ok or bad:
         log(f"catch-up: {ok} earlier VIN reads now verified, {bad} disagree "
             f"({len(rows) - ok - bad} still unverified)")
 
 
+# ---- byte-identical copies ---------------------------------------------------
+# The same photo is cross-posted to many groups: measured 2026-11-04, 179,191
+# unread files held only 44,252 distinct images, and 29,510 were copies of a
+# photo ALREADY read. Identical bytes give identical text, so each image is
+# read once and its text lands on every copy -- quality-neutral, zero calls.
+
+def ensure_schema() -> None:
+    with db.write_tx() as w:
+        cols = {r[1] for r in w.execute("PRAGMA table_info(media)")}
+        if "ocr_engine" not in cols:
+            w.execute("ALTER TABLE media ADD COLUMN ocr_engine TEXT")
+        if "sha1" not in cols:
+            w.execute("ALTER TABLE media ADD COLUMN sha1 TEXT")
+        w.execute("CREATE INDEX IF NOT EXISTS idx_media_sha1 ON media(sha1)")
+
+
+def hash_new_files(conn, deadline=None, chunk: int = 500) -> int:
+    """sha1 of every media file not hashed yet ('' = file missing)."""
+    paths = [r[0] for r in conn.execute(
+        "SELECT DISTINCT path FROM media WHERE sha1 IS NULL")]
+    done = 0
+    for i in range(0, len(paths), chunk):
+        if paused() or (deadline and time.time() > deadline):
+            break
+        batch = []
+        for p in paths[i:i + chunk]:
+            try:
+                batch.append((hashlib.sha1(Path(p).read_bytes()).hexdigest(), p))
+            except OSError:
+                batch.append(("", p))
+        with db.write_tx() as w:
+            w.executemany("UPDATE media SET sha1 = ? WHERE path = ? AND sha1 IS NULL", batch)
+        done += len(batch)
+    if done:
+        log(f"hashed {done} file(s){'' if done == len(paths) else f' of {len(paths)}'}")
+    return done
+
+
+PROPAGATE_SQL = """
+WITH best AS (
+  SELECT sha1, ocr_text, ocr_engine FROM (
+    SELECT sha1, ocr_text, ocr_engine, ROW_NUMBER() OVER (
+             PARTITION BY sha1
+             ORDER BY (ocr_engine LIKE '%+verified') DESC,
+                      (ocr_engine LIKE '%+disagree') DESC, ocr_at DESC) AS rn
+      FROM media
+     WHERE sha1 IS NOT NULL AND sha1 <> '' AND ocr_at IS NOT NULL AND ocr_error IS NULL
+       AND COALESCE(ocr_engine, '') NOT LIKE 'rapidocr%')
+   WHERE rn = 1)
+UPDATE media
+   SET ocr_text = best.ocr_text, ocr_engine = best.ocr_engine, ocr_at = ?, ocr_error = NULL
+  FROM best
+ WHERE media.sha1 = best.sha1
+   AND (media.ocr_at IS NULL OR media.ocr_engine LIKE 'rapidocr%')
+"""
+
+
+def propagate_twins() -> int:
+    """Give every unread copy of an already-read image that image's text."""
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with db.write_tx() as w:
+        before = w.total_changes      # rowcount is -1 for a statement starting WITH
+        w.execute(PROPAGATE_SQL, (now,))
+        n = w.total_changes - before
+    if n:
+        log(f"copied text to {n} byte-identical copies of photos already read (0 calls)")
+    return n
+
+
 def pending(conn, limit: int) -> list[tuple[str, list[int]]]:
+    """One entry per distinct image still to read: (a path, every media id
+    carrying those bytes). Recovery-list posts first, then newest."""
     found = " OR ".join(f"p.text LIKE '%{w}%'" for w in FOUND_WORDS)
     rows = conn.execute(
-        "SELECT m.path, group_concat(m.id), max(CASE WHEN " + found + " THEN 1 ELSE 0 END),"
+        "SELECT min(m.path), group_concat(m.id), max(CASE WHEN " + found + " THEN 1 ELSE 0 END),"
         " max(m.post_id) FROM media m JOIN posts p ON p.id = m.post_id "
         "WHERE m.ocr_at IS NULL OR m.ocr_engine LIKE 'rapidocr%' "
-        "GROUP BY m.path ORDER BY 3 DESC, 4 DESC" + (f" LIMIT {limit}" if limit else "")
+        "GROUP BY COALESCE(NULLIF(m.sha1, ''), m.path) ORDER BY 3 DESC, 4 DESC"
+        + (f" LIMIT {limit}" if limit else "")
     ).fetchall()
     return [(p, [int(i) for i in ids.split(",")]) for p, ids, _, _ in rows]
+
+
+# A 503 "high demand" spell used to END the run: 67 of 85 runs stopped early
+# and the primary model used 18% of its daily quota. Now the run rests and
+# retries the same batch; only the DAILY quota (QuotaHit) or a long outage stops it.
+PRIMARY_REST = 300
+MAX_BUSY_IN_A_ROW = 6
+
+
+def rest(seconds: float, deadline) -> bool:
+    """Sleep, waking early for a pause or the deadline. False = stop the run."""
+    end = time.time() + seconds
+    while time.time() < end:
+        if paused() or (deadline and time.time() > deadline):
+            return False
+        time.sleep(min(15, end - time.time()))
+    return True
 
 
 def main() -> None:
@@ -353,33 +457,37 @@ def main() -> None:
     if clash:
         log(f"WARNING: {sorted(clash)} is also used by the daily scoring lane")
 
-    conn = sqlite3.connect(DB, timeout=60)
+    deadline = time.time() + args.hours * 3600 if args.hours else None
+    ensure_schema()
+    # reads only; every write goes through db.write_tx AFTER the API calls, so
+    # no lock is ever held across a Gemini request (one used to sit for 222 s)
+    conn = sqlite3.connect(DB, timeout=60, isolation_level=None)
     conn.execute("PRAGMA busy_timeout=60000")
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(media)")}
-    if "ocr_engine" not in cols:
-        conn.execute("ALTER TABLE media ADD COLUMN ocr_engine TEXT")
-        conn.commit()
+    hash_new_files(conn, deadline)
+    propagate_twins()
 
     work = pending(conn, args.limit)
-    log(f"start: {len(work)} files to read, models {args.models}, verify "
+    log(f"start: {len(work)} distinct images to read, models {args.models}, verify "
         f"{'off' if args.no_verify else VERIFY_MODELS}")
     reader = Reader(args.models, args.rpm)
     verifier = Verifier(reader, [] if args.no_verify else VERIFY_MODELS)
-    deadline = time.time() + args.hours * 3600 if args.hours else None
     done = errs = verified = disagree = blank = unverified = 0
     t0 = time.time()
+    now = lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
 
-    def store(rows, text, err, tag):
-        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        conn.executemany(
-            "UPDATE media SET ocr_text=?, ocr_at=?, ocr_error=?, ocr_engine=? WHERE id=?",
-            [(text, now, err, tag, i) for i in rows])
+    def flush(updates: list[tuple]) -> None:
+        if updates:
+            with db.write_tx() as w:
+                w.executemany("UPDATE media SET ocr_text=?, ocr_at=?, ocr_error=?, ocr_engine=? "
+                              "WHERE id=?", updates)
 
     if not args.no_verify:
         catch_up(conn, verifier, deadline)
 
+    busy_in_a_row = 0
     try:
-        for start in range(0, len(work), BATCH):
+        start = 0
+        while start < len(work):
             if paused():
                 log("pause flag seen — stopping")
                 break
@@ -387,26 +495,40 @@ def main() -> None:
                 log("time limit reached")
                 break
             group = work[start:start + BATCH]
-            images, slots = [], []
+            updates, images, slots = [], [], []
             for path, rows in group:
                 try:
                     data = Path(path).read_bytes()
                 except OSError:
-                    store(rows, "", "file missing", "gemini-ocr")
+                    updates += [("", now(), "file missing", "gemini-ocr", i) for i in rows]
                     errs += 1
                     continue
                 mime = mime_of(data)
                 if not mime:
-                    store(rows, "", "not an image", "gemini-ocr")
+                    updates += [("", now(), "not an image", "gemini-ocr", i) for i in rows]
                     errs += 1
                     continue
                 images.append((mime, data))
                 slots.append((path, rows))
             if not images:
-                conn.commit()
+                flush(updates)
+                start += BATCH
                 continue
 
-            texts, model = reader.read(images)
+            try:
+                texts, model = reader.read(images)
+            except Unavailable as u:
+                busy_in_a_row += 1
+                if busy_in_a_row > MAX_BUSY_IN_A_ROW:
+                    flush(updates)
+                    raise
+                log(f"  primary busy ({str(u)[:120]}): resting {PRIMARY_REST // 60} min, "
+                    f"then the same batch again ({busy_in_a_row}/{MAX_BUSY_IN_A_ROW})")
+                flush(updates)
+                if not rest(PRIMARY_REST, deadline):
+                    break
+                continue                      # same `start`: nothing is skipped
+            busy_in_a_row = 0
             # second read for VIN-like photos, by a different, stronger model
             check = [i for i, t in enumerate(texts) if t is not None and vin_like(t)]
             second = {}
@@ -421,10 +543,7 @@ def main() -> None:
                     unverified += 1
                 if i in second:
                     vtext, vmodel = second[i]
-                    a, b = id_tokens(text), id_tokens(vtext)
-                    vins_a = {t for t in a if len(t) >= 11}
-                    vins_b = {t for t in b if len(t) >= 11}
-                    if vins_a == vins_b:
+                    if compare(text, vtext):
                         tag += "+verified"
                         verified += 1
                     else:
@@ -432,25 +551,33 @@ def main() -> None:
                         tag += "+disagree"
                         disagree += 1
                 if text is None:
-                    store(rows, "", "unalignable reply", tag)
+                    updates += [("", now(), "unalignable reply", tag, r) for r in rows]
                     errs += 1
                     continue
-                store(rows, text, None, tag)
+                updates += [(text, now(), None, tag, r) for r in rows]
                 blank += not text.strip()
                 done += 1
-            conn.commit()
-            if (start // BATCH) % 20 == 19:
+            flush(updates)
+            start += BATCH
+            if (start // BATCH) % 20 == 0:
                 log(f"  {done} read, {verified} VINs verified, {disagree} disagree, "
                     f"{blank} blank, {errs} errors, calls {reader.calls}")
     except (QuotaHit, Unavailable) as q:
         log(f"stopping: {q}")
-    conn.commit()
     mins = (time.time() - t0) / 60
-    log(f"done: {done} files read in {mins:.1f} min, {verified} VINs verified, "
+    log(f"done: {done} images read in {mins:.1f} min, {verified} VINs verified, "
         f"{disagree} disagreements kept both reads, {unverified} VINs unverified, "
         f"{blank} blank, {errs} errors; "
         f"calls {reader.calls}")
+    copied = propagate_twins()      # copies that arrived while this run was reading
+    if copied:
+        log(f"after the run: {copied} more copies filled")
 
 
 if __name__ == "__main__":
-    main()
+    if paused():
+        main()                       # logs "paused" and does nothing
+    else:
+        from carhunt import deadman
+        with deadman.tracked("photo_ocr", "photo-ocr"):
+            main()
