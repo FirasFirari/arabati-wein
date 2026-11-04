@@ -355,22 +355,28 @@ def ensure_schema() -> None:
 
 
 def hash_new_files(conn, deadline=None, chunk: int = 500) -> int:
-    """sha1 of every media file not hashed yet ('' = file missing)."""
-    paths = [r[0] for r in conn.execute(
-        "SELECT DISTINCT path FROM media WHERE sha1 IS NULL")]
+    """sha1 of every media file not hashed yet ('' = file missing).
+
+    Files are read OUTSIDE any transaction and rows are updated by primary
+    key: `media.path` has no index, and updating `WHERE path = ?` held the
+    write lock for 94 s per 500 files on the first run (2026-11-04).
+    """
+    paths = conn.execute(
+        "SELECT path, group_concat(id) FROM media WHERE sha1 IS NULL GROUP BY path").fetchall()
     done = 0
     for i in range(0, len(paths), chunk):
         if paused() or (deadline and time.time() > deadline):
             break
         batch = []
-        for p in paths[i:i + chunk]:
+        for p, ids in paths[i:i + chunk]:
             try:
-                batch.append((hashlib.sha1(Path(p).read_bytes()).hexdigest(), p))
+                digest = hashlib.sha1(Path(p).read_bytes()).hexdigest()
             except OSError:
-                batch.append(("", p))
+                digest = ""
+            batch += [(digest, int(x)) for x in ids.split(",")]
         with db.write_tx() as w:
-            w.executemany("UPDATE media SET sha1 = ? WHERE path = ? AND sha1 IS NULL", batch)
-        done += len(batch)
+            w.executemany("UPDATE media SET sha1 = ? WHERE id = ?", batch)
+        done += min(chunk, len(paths) - i)
     if done:
         log(f"hashed {done} file(s){'' if done == len(paths) else f' of {len(paths)}'}")
     return done
