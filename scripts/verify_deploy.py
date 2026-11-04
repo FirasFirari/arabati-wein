@@ -1,6 +1,11 @@
-"""Check the LIVE site after a deploy. Exits non-zero on any failure.
+"""Check the LIVE site (or a draft deploy) after a deploy. Exits non-zero on any failure.
 
     python scripts\\verify_deploy.py
+    python scripts\\verify_deploy.py --base https://<deploy-id>--mycarsd.netlify.app
+
+netlify_deploy.py runs this against the DRAFT before publishing it, then
+against the live site. The payloads are also checked the way visitors get
+them -- decompressed -- by carhunt/publish_guard.py.
 
 Checks: the watch form survived (name='watch' + hidden form-name), the two
 payloads served match the local files byte for byte, every public page answers
@@ -23,6 +28,7 @@ except Exception:
 
 import requests
 
+from carhunt import publish_guard
 from carhunt.config import PROJECT_ROOT
 
 BASE = "https://mycarsd.online"
@@ -41,6 +47,10 @@ def get(path: str, **kw):
 
 
 def main() -> None:
+    global BASE
+    if "--base" in sys.argv:
+        BASE = sys.argv[sys.argv.index("--base") + 1].rstrip("/")
+    print(f"verifying {BASE}")
     r = get("index.html")
     check("index.html 200", r.status_code == 200, str(r.status_code))
     html = r.text
@@ -59,6 +69,11 @@ def main() -> None:
         live = get(f"{name}?v={m.group(1) if m else 'x'}")
         same = live.status_code == 200 and hashlib.sha1(live.content).hexdigest() == hashlib.sha1(local.read_bytes()).hexdigest()
         check(f"{name} served == local", same, f"{len(live.content):,} bytes")
+        if live.status_code == 200:
+            # what visitors actually receive, decompressed: forbidden numbers
+            # and stray phone numbers (grep cannot see inside the gzip)
+            found = publish_guard.scan_payload(name, live.content, publish_guard.forbidden_patterns())
+            check(f"{name} passes publish_guard", not found, "; ".join(found))
 
     for page in ("support.html", "privacy.html", "stats.html", "robots.txt", "sitemap.xml",
                  "funding.json", "llms.txt", "stats.json"):

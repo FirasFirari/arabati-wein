@@ -23,6 +23,7 @@ Exit status is non-zero on any finding, so a deploy can stop on it.
 from __future__ import annotations
 
 import gzip
+import json
 import pathlib
 import re
 import sys
@@ -77,6 +78,57 @@ def mask(text, patterns, replacement: str = "[رقم محذوف]"):
     return "".join(out)
 
 
+# A Sudanese mobile number in any spelling: 0 or +249, then 9 or 1, then 8
+# digits, with spaces/dashes/dots allowed between digits.
+PHONE = re.compile(r"(?<!\d)(?:\+?249[\s\-.]*|0)[19](?:[\s\-.]*\d){8}(?!\d)")
+
+
+def _last9(s: str) -> str:
+    return re.sub(r"\D", "", s)[-9:]
+
+
+def mask_foreign_phones(text, own_contact, replacement: str = "[رقم محذوف]"):
+    """Mask phone numbers in free text that are NOT the row's own contact.
+
+    The privacy line (docs/PRIVACY.md): a poster who writes "call me on 09.."
+    has chosen to be contactable, so the row's own contact stays. A number read
+    off a photographed registration card, or anybody else's number pasted into
+    a description, belongs to someone who did not choose that. Measured
+    2026-11-04: 1,188 numbers in descriptions were the row's own contact, 255
+    were someone else's.
+    """
+    if not text:
+        return text
+    s = str(text)
+    folded = s.translate(_DIGIT_FOLD)
+    own = re.sub(r"\D", "", str(own_contact or "").translate(_DIGIT_FOLD))
+    out, last, changed = [], 0, False
+    for m in PHONE.finditer(folded):
+        if own and _last9(m.group(0)) in own:
+            continue
+        out.append(s[last:m.start()])
+        out.append(replacement)
+        last, changed = m.end(), True
+    if not changed:
+        return text
+    out.append(s[last:])
+    return "".join(out)
+
+
+def scan_detail_privacy(detail: dict) -> list[str]:
+    """Phone numbers in shipped free text that belong to no shipped contact."""
+    tables = detail.get("t") or {}
+    contacts = {_last9(str(c).translate(_DIGIT_FOLD)) for c in (tables.get("contact") or []) if c}
+    bad = 0
+    for field in ("description", "location"):
+        for value in tables.get(field) or []:
+            for m in PHONE.finditer(str(value or "").translate(_DIGIT_FOLD)):
+                if _last9(m.group(0)) not in contacts:
+                    bad += 1
+    return [f"detail.bin: {bad} phone number(s) in descriptions/locations that are "
+            f"nobody's listed contact"] if bad else []
+
+
 def contains(text, patterns) -> bool:
     if not text or not patterns:
         return False
@@ -96,6 +148,11 @@ def scan_payload(name: str, blob: bytes, patterns) -> list[str]:
         n = len(p.findall(folded))
         if n:
             found.append(f"{name}: forbidden number present {n}x")
+    if name.startswith("detail"):
+        try:
+            found += scan_detail_privacy(json.loads(text))
+        except ValueError:
+            found.append(f"{name}: not valid JSON")
     return found
 
 

@@ -14,8 +14,15 @@ instant Telegram alert for new watch registrations - see that file.
 Only files on scripts/deploy_allowlist.py may be published: a backup left in
 site/deploy once went public for a minute. Anything else aborts the deploy.
 
-    python scripts\\netlify_deploy.py            # deploy
-    python scripts\\netlify_deploy.py --dry-run  # show what would be sent
+    python scripts\\netlify_deploy.py                 # draft -> verify -> publish
+    python scripts\\netlify_deploy.py --dry-run       # show what would be sent
+    python scripts\\netlify_deploy.py --allow-shrink  # accept >5% fewer vehicles
+    python scripts\\netlify_deploy.py --rollback [ID] # re-publish the previous deploy
+
+Since 2026-11-04 every deploy is a DRAFT first: verify_deploy.py checks it at
+its own URL, and only then is it published. A build with more than 5% fewer
+vehicles than the live one is refused, and each deploy records its git commit
+and the deploy it replaced in data/deploy_history.jsonl, which --rollback uses.
 
 Site id: config.yaml `netlify.site_id` (or NETLIFY_SITE_ID). Token:
 NETLIFY_AUTH_TOKEN or site/netlify_token.txt (any letter case).
@@ -116,10 +123,113 @@ def stage_functions() -> dict:
     return out
 
 
+HISTORY = PROJECT_ROOT / "data" / "deploy_history.jsonl"
+LAST = PROJECT_ROOT / "data" / "last_deploy.json"
+SHRINK_FLOOR = 0.95
+
+
+def dossier_count(files: dict) -> int | None:
+    """Vehicles in the core payload about to ship (None if unreadable)."""
+    try:
+        import gzip
+        core = json.loads(gzip.decompress(files["/core.bin"][1]))
+        return len(core["ord"])
+    except Exception:
+        return None
+
+
+def check_shrink(dossiers: int | None, allow: bool) -> None:
+    """Refuse a build that lost more than 5% of the vehicles of the live one.
+
+    On 2026-08-26 the export silently wrote nothing for days; an empty or
+    half-written build passes every hash check, because it is consistent with
+    itself. Only a comparison with what is live catches it."""
+    if dossiers is None:
+        sys.exit("REFUSED: cannot read the vehicle count from core.bin")
+    try:
+        previous = json.loads(LAST.read_text(encoding="utf-8")).get("dossiers")
+    except (OSError, ValueError):
+        previous = None
+    if previous and dossiers < previous * SHRINK_FLOOR and not allow:
+        sys.exit(f"REFUSED: this build has {dossiers:,} vehicles, the live one {previous:,} "
+                 f"(-{1 - dossiers / previous:.0%}). If that is intended, rerun with --allow-shrink.")
+    print(f"vehicles: {dossiers:,}" + (f" (live: {previous:,})" if previous else ""))
+
+
+def git_state() -> dict:
+    import subprocess
+    run = lambda *a: subprocess.run(["git", *a], cwd=PROJECT_ROOT, capture_output=True,  # noqa: E731
+                                    text=True).stdout.strip()
+    return {"git": run("rev-parse", "HEAD")[:12], "dirty": bool(run("status", "--porcelain", "--", "carhunt", "scripts", "site"))}
+
+
+def wait_ready(H: dict, deploy_id: str, minutes: int = 10) -> dict:
+    for _ in range(minutes * 12):
+        st = requests.get(f"{API}/deploys/{deploy_id}", headers=H, timeout=60).json()
+        if st.get("state") in ("ready", "error"):
+            return st
+        time.sleep(5)
+    sys.exit(f"deploy {deploy_id} still processing after {minutes} minutes — NOT published; "
+             f"check the Netlify Deploys page")
+
+
+def publish(H: dict, sid: str, deploy_id: str) -> None:
+    """Make a ready deploy the live one (Netlify's restore endpoint)."""
+    r = requests.post(f"{API}/sites/{sid}/deploys/{deploy_id}/restore", headers=H, timeout=120)
+    r.raise_for_status()
+
+
+def record(entry: dict) -> None:
+    LAST.write_text(json.dumps(entry, indent=1), encoding="utf-8")
+    with open(HISTORY, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({k: v for k, v in entry.items() if k not in ("files", "functions")})
+                 + "\n")
+
+
+def verify(base: str) -> bool:
+    import subprocess
+    r = subprocess.run([sys.executable, str(PROJECT_ROOT / "scripts" / "verify_deploy.py"),
+                        "--base", base], cwd=PROJECT_ROOT)
+    return r.returncode == 0
+
+
+def rollback(target: str | None) -> None:
+    """Re-publish an earlier deploy: the given id, or the one before the live one."""
+    sid, H = site_id(), {"Authorization": f"Bearer {token()}"}
+    if not target:
+        try:
+            lines = [json.loads(x) for x in HISTORY.read_text(encoding="utf-8").splitlines() if x.strip()]
+        except OSError:
+            lines = []
+        live = json.loads(LAST.read_text(encoding="utf-8")).get("id") if LAST.exists() else None
+        earlier = [e for e in lines if e.get("id") != live]
+        if not earlier:
+            sys.exit("no earlier deploy recorded in data/deploy_history.jsonl; pass an id")
+        target = earlier[-1]["id"]
+    publish(H, sid, target)
+    print(f"rolled back: deploy {target} is live again")
+    entry = {"id": target, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "rollback": True}
+    try:
+        prev = json.loads(LAST.read_text(encoding="utf-8"))
+        entry["dossiers"] = next((json.loads(x).get("dossiers") for x in
+                                  reversed(HISTORY.read_text(encoding="utf-8").splitlines())
+                                  if x.strip() and json.loads(x).get("id") == target), None)
+        entry["previous"] = prev.get("id")
+    except (OSError, ValueError):
+        pass
+    record(entry)
+
+
 def main() -> None:
     dry = "--dry-run" in sys.argv
+    if "--rollback" in sys.argv:
+        i = sys.argv.index("--rollback")
+        rollback(sys.argv[i + 1] if len(sys.argv) > i + 1 and not sys.argv[i + 1].startswith("-") else None)
+        return
     files = stage()
     funcs = stage_functions()
+    dossiers = dossier_count(files)
+    check_shrink(dossiers, "--allow-shrink" in sys.argv)
     print("staging:")
     for path, (sha, body) in files.items():
         print(f"  {path:<16} {len(body):>10,} bytes  sha1 {sha[:12]}")
@@ -130,15 +240,18 @@ def main() -> None:
         return
 
     sid, H = site_id(), {"Authorization": f"Bearer {token()}"}
+    # A DRAFT first: it gets its own URL and is checked there before anyone
+    # sees it. Until 2026-11-04 deploys went straight to production and were
+    # only checked once live.
     r = requests.post(f"{API}/sites/{sid}/deploys", headers=H, timeout=120,
                       json={"files": {p: s for p, (s, _) in files.items()},
                             "functions": {n: s for n, (s, _) in funcs.items()},
-                            "draft": False})
+                            "draft": True})
     r.raise_for_status()
     dep = r.json()
     deploy_id, required = dep["id"], dep.get("required") or []
     required_fns = dep.get("required_functions") or []
-    print(f"\ndeploy {deploy_id} created, state={dep.get('state')}")
+    print(f"\ndraft deploy {deploy_id} created")
     print(f"netlify needs {len(required)} file(s) and {len(required_fns)} function(s) uploaded")
 
     by_sha = {s: (p, b) for p, (s, b) in files.items()}
@@ -160,28 +273,33 @@ def main() -> None:
         up.raise_for_status()
         print(f"  uploaded function {name} ({len(body):,} bytes)")
 
-    for _ in range(60):
-        st = requests.get(f"{API}/deploys/{deploy_id}", headers=H, timeout=60).json()
-        state = st.get("state")
-        if state in ("ready", "error"):
-            print(f"\nfinal state: {state}")
-            print("url:", st.get("deploy_ssl_url") or st.get("deploy_url"))
-            if state == "error":
-                print("message:", st.get("error_message"))
-                sys.exit(1)
-            (PROJECT_ROOT / "data" / "last_deploy.json").write_text(
-                json.dumps({"id": deploy_id, "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                            "files": {p: s for p, (s, _) in files.items()},
-                            "functions": {n: s for n, (s, _) in funcs.items()}}, indent=1),
-                encoding="utf-8")
-            try:
-                import indexnow
-                indexnow.submit()
-            except Exception as e:  # a ping failure must never fail a deploy
-                print(f"indexnow: skipped ({e})")
-            return
-        time.sleep(5)
-    print("\nstill processing after 5 minutes; check the Netlify Deploys page")
+    st = wait_ready(H, deploy_id)
+    if st.get("state") == "error":
+        sys.exit(f"draft failed: {st.get('error_message')} — nothing published")
+    draft_url = st.get("deploy_ssl_url") or st.get("deploy_url")
+    print(f"draft ready: {draft_url}\nchecking the draft before publishing...")
+    if not verify(draft_url):
+        sys.exit(f"REFUSED: the draft failed verification — nothing published. Inspect {draft_url}")
+
+    try:
+        previous = json.loads(LAST.read_text(encoding="utf-8")).get("id")
+    except (OSError, ValueError):
+        previous = None
+    publish(H, sid, deploy_id)
+    print(f"published: {deploy_id} is live (previous: {previous}; undo with --rollback)")
+    record({"id": deploy_id, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "previous": previous,
+            "dossiers": dossiers, **git_state(),
+            "files": {p: s for p, (s, _) in files.items()},
+            "functions": {n: s for n, (s, _) in funcs.items()}})
+    if not verify("https://mycarsd.online"):
+        print("WARNING: the LIVE site failed verification after publishing; "
+              "consider: python scripts\\netlify_deploy.py --rollback")
+        sys.exit(1)
+    try:
+        import indexnow
+        indexnow.submit()
+    except Exception as e:  # a ping failure must never fail a deploy
+        print(f"indexnow: skipped ({e})")
 
 
 if __name__ == "__main__":

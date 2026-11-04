@@ -52,3 +52,24 @@ def test_leftover_template_token_is_a_finding(pats):
 
 def test_too_short_numbers_are_not_guessed():
     assert g.forbidden_patterns({"publish": {"forbidden_contacts": ["123"]}}) == []
+
+
+def test_a_posters_own_number_stays_and_anyone_elses_is_masked():
+    own = "0912345678"
+    text = "للتواصل 0912345678 او صاحب الرخصة ٠٩٩٩١١١٢٢٢"
+    out = g.mask_foreign_phones(text, own)
+    assert "0912345678" in out
+    assert "٠٩٩٩١١١٢٢٢" not in out and "[رقم محذوف]" in out
+
+
+def test_no_contact_means_every_number_in_free_text_is_masked():
+    assert g.mask_foreign_phones("call 0912 345 678", None) == "call [رقم محذوف]"
+    assert g.mask_foreign_phones("chassis 912345678", None) == "chassis 912345678"  # no 0 prefix: not a phone
+
+
+def test_guard_refuses_a_stray_number_in_shipped_text():
+    detail = {"t": {"contact": ["0912345678"], "description": ["call 0912345678", "owner " + "0" + "999111222"],
+                    "location": []}}
+    assert g.scan_detail_privacy(detail)
+    detail["t"]["description"] = ["call 0912345678"]
+    assert g.scan_detail_privacy(detail) == []

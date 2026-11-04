@@ -1628,6 +1628,10 @@ function showDetailStatus(got, total, parsing) {
 _DOC_MARKERS = (
     "registration card", "registration document", "vehicle-registration",
     "رخصة مركبة", "استمارة", "owner name", "owner named",
+    # document FIELD labels read off photographed cards (2026-11-04: 40 photo
+    # rows carried an ID-number field, ~20 a name field)
+    "الاسم:", "اسم:", "اسم المالك", "رقم الهوية", "الرقم الوطني", "رقم الجواز",
+    "owner:", "address:", "national id",
 )
 _REDACTED = "قُرئ من صورة وثيقة تسجيل مركبة"   # "read from a vehicle registration document photo"
 
@@ -1794,6 +1798,10 @@ def main() -> None:
                 rec["contact"] = None
             for field in ("description", "location"):
                 rec[field] = publish_guard.mask(rec.get(field), forbidden)
+        # A number in free text that is not the row's own (offered) contact
+        # belongs to someone who never chose to be listed: masked.
+        for field in ("description", "location"):
+            rec[field] = publish_guard.mask_foreign_phones(rec.get(field), rec.get("contact"))
         rec = {k: val for k, val in rec.items() if val is not None}
         if v.get("from_photo"):
             # read by a vision model from a photo — less reliable than a typed

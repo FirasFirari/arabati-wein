@@ -21,7 +21,8 @@ SWEEP.md
 facebook_posts.md
 funding/FUNDING_PLAN.md
 funding/outreach/
-scripts/build_*.py
+# the hand-built subagent wave scripts (build_099.py ...), NOT build_deploy.py
+scripts/build_[0-9]*.py
 scripts/verdicts_*.json
 scripts/veh_*.json
 scripts/find_shariha*.py
@@ -59,3 +60,6 @@ __pycache__/
 *.err
 *.jsonl
 site/static/indexnow-key.txt
+
+# generated LinkedIn slide decks (the text and generator are tracked)
+social/linkedin/**/*.pdf

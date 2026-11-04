@@ -118,9 +118,9 @@ def main(argv) -> int:
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             for label, pat in patterns:
-                m = pat.search(line)
-                if m and m.group(0) in EXAMPLES:
-                    continue
+                # every match, not the first: an allow-listed example number
+                # early on a line used to hide a real one later on it
+                m = next((x for x in pat.finditer(line) if x.group(0) not in EXAMPLES), None)
                 if m:
                     print(f"{rel}:{lineno}  {label}: {mask(m.group(0))}")
                     hits += 1
