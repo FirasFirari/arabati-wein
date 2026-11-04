@@ -617,7 +617,7 @@ function isPlateShaped(s) {
 // كورولا / كورلا / كرلا / كريلا all reduce to كرل and match Toyota Corolla.
 const normAr = s => (s || '').toLowerCase()
   .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
-  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[ـً-ٰٟ]/g, '');
+  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[\u0640\u064B-\u065F\u0670]/g, '');
 const skeleton = w => { w = normAr(w); return w ? w[0] + w.slice(1).replace(/[اوي]/g, '') : ''; };
 
 const ALIAS_EXACT = {}, ALIAS_SKEL = {};
@@ -636,46 +636,6 @@ function modelKeysIn(text) {
     if (key) found.add(key);
   }
   return found;
-}
-
-function chassisOverlap(query, chassis) {
-  const q = normChassis(query), c = normChassis(chassis);
-  if (q.length < 4 || c.length < 4) return 0;
-  const [shorter, longer] = q.length <= c.length ? [q, c] : [c, q];
-  return (longer.endsWith(shorter) || longer.includes(shorter)) ? shorter.length : 0;
-}
-
-const TEXT_FIELDS = ['make','model','color','year','status','location','description'];
-function score(query, v) {
-  let s = 0; const reasons = [];
-  const qd = digitsOnly(query);
-  if (qd.length >= 4) {
-    const ov = chassisOverlap(query, v.chassis || '');
-    if (ov) { s += 40 + ov * 8; reasons.push(t('r_ch', 'تطابق شاسي')); }
-    // match any digit run of the plate: "12345 خ1" must be found by "12345"
-    const plateTxt = trAr(v.plate || '');
-    const plateRuns = plateTxt.match(/[0-9]{3,}/g) || [];
-    // when the region marker is glued on with no separator ("خ١١٢٣٤٥") the
-    // whole plate is ONE run whose leading digit is the region, not the
-    // serial — so the serial the owner remembers would never match. Mirror
-    // normalize.norm_plate and offer the peeled serial as a candidate too.
-    const glued = plateTxt.match(/[ء-ي]\s*[0-9]([0-9]{5,})/);
-    if (glued) plateRuns.push(glued[1]);
-    for (const run of plateRuns) {
-      if (qd === run) { s += 60; reasons.push(t('r_pl', 'تطابق لوحة')); break; }
-    }
-  }
-  const terms = trAr(query).split(/[\s،]+/).filter(t => t.length >= 2 && !/^\d+$/.test(t));
-  if (terms.length) {
-    const hay = normAr(TEXT_FIELDS.map(f => String(v[f] || '')).join(' '));
-    const hits = terms.filter(t => hay.includes(normAr(t)));
-    if (hits.length) { s += 10 * hits.length; reasons.push('تطابق وصف'); }
-  }
-  const qKeys = modelKeysIn(query);
-  if (qKeys.size && v.model_key && qKeys.has(v.model_key)) {
-    s += 25; reasons.push('تطابق موديل');
-  }
-  return { s, reasons };
 }
 
 const STATUS_AR = { spotted: 'شوهدت', for_sale: 'معروضة للبيع', seeking_owner: 'تبحث عن صاحبها',
@@ -1109,7 +1069,10 @@ function queryCtx(query) {
   // A standalone 19xx/20xx token is a MODEL YEAR, not identifier material.
   // Without this, "كورولا 2015" hunts for a chassis containing 2015 and either
   // returns nothing or returns junk that merely ends in those digits.
-  const years = tokens.filter(x => /^(19|20)\d{2}$/.test(x));
+  // EXCEPT beside a region marker: "2014 خ1" is a PLATE whose serial looks
+  // like a year (the watch rule matched it; the page did not, until 2026-11).
+  const nextToMarker = i => MARKER_TOKEN.test(tokens[i - 1] || '') || MARKER_TOKEN.test(tokens[i + 1] || '');
+  const years = tokens.filter((x, i) => /^(19|20)\d{2}$/.test(x) && !nextToMarker(i));
   const idSrc = tokens.filter(x => !years.includes(x)).join(' ');
   // A plate typed with its region marker ("41019 خ 9") has NO chassis reading:
   // normChassis glues it into "410199", a number written nowhere, which then
@@ -1121,7 +1084,10 @@ function queryCtx(query) {
     plate,
     // every digit run separately: a plate typed as "12345 خ1" must match the
     // stored run "12345". Concatenating gave "123451", which matches nothing.
-    runs: (idSrc.match(/[0-9]{3,}/g) || []),
+    // A region marker glued on ("خ١١٢٣٤٥") also yields its serial, as
+    // normalize.plate_variants does for the watch rule.
+    runs: (idSrc.match(/[0-9]{3,}/g) || []).concat(
+      ((idSrc.match(/[ء-ي]\s*([0-9])([0-9]{5,})/) || [])[2] || []) ),
     years,
     terms: tokens.filter(x => x.length >= 2 && !/^\d+$/.test(x)).map(normAr),
     qKeys: modelKeysIn(query),
@@ -1139,7 +1105,11 @@ function dscoreAt(i, ctx) {
       const qShorter = ctx.qn.length <= cn.length;
       const sh = qShorter ? ctx.qn : cn, lo = qShorter ? cn : ctx.qn;
       const okEnd = lo.endsWith(sh) && sh.length >= (qShorter ? 4 : 5);
-      const okIn = lo.includes(sh) && sh.length >= (qShorter ? 4 : 6);
+      // a mid-string fragment needs 5 DIGITS: an 8-character VIN prefix
+      // ("JMYSTCY4", one digit) is every car of that model -- the 2026-10-27
+      // false lead. Mirrors watches.match_reason.
+      const okIn = lo.includes(sh) && sh.length >= (qShorter ? 4 : 6)
+        && sh.replace(/[^0-9]/g, '').length >= 5;
       if (okEnd || okIn) { sc += 40 + sh.length * 8; reasons.push(t('r_ch', 'تطابق شاسي')); }
     }
     if (!reasons.length && ctx.runs.length) {
@@ -1826,7 +1796,7 @@ def main() -> None:
     _AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
     _AR_LETTERS = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ة": "ه",
                                  "ى": "ي", "ؤ": "و", "ئ": "ي"})
-    _AR_MARKS = re.compile("[\u0640\u064B-\u0670\u065F]")
+    _AR_MARKS = re.compile("[\u0640\u064B-\u065F\u0670]")   # not U+0660-9: those are digits
     _VIN_FOLD = str.maketrans("OIQ", "010")      # mirrors normalize.norm_chassis
 
     def tr_ar(value):

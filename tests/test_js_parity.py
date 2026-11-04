@@ -74,8 +74,6 @@ def test_arabic_text_folding_matches_without_digits():
     assert [g[4] for g in got] == [normalize_ar(v) for v in no_digits]
 
 
-@pytest.mark.xfail(strict=True, reason="audit 2026-11-04 (L2): JS normAr strips U+0660-0669, "
-                                       "deleting Arabic-Indic digits that Python keeps")
 def test_arabic_text_folding_keeps_arabic_indic_digits():
     value = "كورولا ٢٠١٥"
     assert js([value])[0][4] == normalize_ar(value)

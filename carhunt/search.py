@@ -11,28 +11,27 @@ import argparse
 
 from . import db
 from .aliases import model_keys_in, normalize_ar
-from .normalize import chassis_overlap, digits_only, plate_variants
+from .normalize import digits_only
+from .watches import match_reason, readings
 
 TEXT_FIELDS = ("make", "model", "color", "year", "status", "location", "description")
 
 
 def score_vehicle(query: str, vehicle: dict) -> tuple[int, list[str]]:
-    """Return (score, reasons) for how well a vehicle matches the query."""
-    score, reasons = 0, []
-    q_digits = digits_only(query)
+    """Return (score, reasons) for how well a vehicle matches the query.
 
-    if len(q_digits) >= 4:
-        overlap = chassis_overlap(query, vehicle.get("chassis") or "")
-        if overlap:
-            score += 40 + overlap * 8  # longer overlap → much stronger
-            reasons.append(f"chassis overlap ({overlap} chars): {vehicle['chassis']}")
-        # match against each digit run of the stored plate: "12345 خ1" must be
-        # found by someone typing just the serial they remember
-        for run in plate_variants(vehicle.get("plate") or ""):
-            if q_digits == run:
-                score += 60
-                reasons.append(f"plate match: {vehicle['plate']}")
-                break
+    Identifier matching is the standing-watch rule (carhunt/watches.py), which
+    the published page now mirrors and tests/test_search_parity.py checks:
+    this CLI used to carry a third, older rule that flattened a plate's region
+    digit into its serial and had no plate-shaped guard.
+    """
+    score, reasons = 0, []
+    if len(digits_only(query)) >= 4:
+        qn, qp = readings(query)
+        why = match_reason(qn, qp, vehicle.get("chassis_norm") or "", vehicle.get("plate_norm"))
+        if why:
+            score += 60 if "plate" in why else 40 + 8 * min(len(qn), 17)
+            reasons.append(why)
 
     terms = [t for t in query.replace("،", " ").split() if not digits_only(t) and len(t) >= 2]
     if terms:
