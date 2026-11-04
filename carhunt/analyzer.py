@@ -153,8 +153,19 @@ def _parse_verdict(text: str) -> dict:
     if not match:
         raise ValueError(f"No JSON object in model response: {text[:200]}")
     verdict = json.loads(match.group(0))
+    # These keys are EVIDENCE our own deterministic code records; the alert cap
+    # trusts them. A model that wrote one into its reply (its prompt names the
+    # target's identifiers) would back its own score. Never accept them from
+    # model output.
+    for key in RESERVED_KEYS:
+        verdict.pop(key, None)
     verdict["score"] = int(verdict.get("score", 0))
     return verdict
+
+
+RESERVED_KEYS = ("identifier_hit", "identifier_source", "verified_by_eye", "alert_capped",
+                 "model_score", "needs_photo_verification", "likely_prompt_echo",
+                 "vehicles_copied_from_duplicate", "ungrounded_dropped")
 
 
 class Analyzer:

@@ -125,6 +125,28 @@ def link_health(conn) -> None:
         log(f"links ok: {total - missing}/{total} new Facebook posts have a link")
 
 
+def target_vehicle_scan(conn, car: dict, since_vehicle_id: int) -> list[dict]:
+    """The target's chassis and plate against registry rows added since the
+    last run. Text and OCR are scanned above, but a number a lane read off a
+    photo and stored only in `vehicles` reached no alert at all before
+    2026-11-04: the dashboard listed hits by a fixed tier list that excluded
+    every current lane. Same matching rule as the standing watches."""
+    readings = [watchlib.readings(x) for x in (car.get("vin"), car.get("plate")) if x]
+    hits, seen_posts = [], set()
+    for pid, cn, pn in conn.execute(
+            "SELECT post_id, chassis_norm, plate_norm FROM vehicles WHERE id > ?",
+            (since_vehicle_id,)):
+        if pid in seen_posts:
+            continue
+        for qn, qp in readings:
+            why = watchlib.match_reason(qn, qp, cn, pn)
+            if why:
+                hits.append({"post_id": pid, "why": f"registry row: {why}"})
+                seen_posts.add(pid)
+                break
+    return hits
+
+
 def target_scan(conn, car: dict, since: int, extra_ids=None) -> list[dict]:
     hits = []
     for post_id, text, ocr in watchlib.raw_posts(conn, since, extra_ids):
@@ -173,6 +195,8 @@ def main() -> None:
     # --- the target car ---
     car = load_config()["car"]
     t_hits = target_scan(conn, car, state.get("target_last_id", 0), reocr)
+    max_vid = conn.execute("SELECT COALESCE(MAX(id), 0) FROM vehicles").fetchone()[0]
+    t_hits += target_vehicle_scan(conn, car, state.get("target_vehicle_last_id", 0))
 
     # --- standing watches ---
     watches = watchlib.load_watches()
@@ -203,6 +227,7 @@ def main() -> None:
         {"generated_at": now(), "last_post_id": max_id, "watch_sig": sig,
          "hits": merged}, ensure_ascii=False, indent=1), encoding="utf-8")
     STATE.write_text(json.dumps({"target_last_id": max_id, "watch_last_id": max_id,
+                                "target_vehicle_last_id": max_vid,
                                 "ocr_mark": ocr_mark}),
                      encoding="utf-8")
 

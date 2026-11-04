@@ -126,12 +126,15 @@ def _snapshot() -> dict:
             "json_extract(verdict,'$.tier') AS tier "
             "FROM posts ORDER BY id DESC LIMIT 12")]
 
-        # only verified tiers can raise an alert — screen-tier scores are not trusted
+        # Every lane writes through db.set_verdict, whose alert cap holds any
+        # score without an identifier of the target behind it at threshold-1.
+        # So a score at the line IS backed, whatever the lane; the old fixed
+        # tier list hid every current lane's hits (gemini_*, kashf_parser).
+        threshold = cfg["matching"]["alert_threshold"]
         alerts = [dict(r) for r in conn.execute(
-            "SELECT id, source, score, url, substr(json_extract(verdict,'$.reasons'),1,220) "
-            "AS reasons FROM posts WHERE score >= 60 AND json_extract(verdict,'$.tier') IN "
-            "('deep','deep_after_batch','deep_recheck','identifier_scan') "
-            "ORDER BY score DESC LIMIT 8")]
+            "SELECT id, source, score, url, substr(COALESCE(json_extract(verdict,'$.identifier_hit'),"
+            " json_extract(verdict,'$.reasons')),1,220) AS reasons FROM posts "
+            "WHERE score >= ? ORDER BY score DESC, id DESC LIMIT 12", (threshold,))]
 
         sources = [dict(r) for r in conn.execute(
             "SELECT p.source, COUNT(DISTINCT p.id) AS posts, "

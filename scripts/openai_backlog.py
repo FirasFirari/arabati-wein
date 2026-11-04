@@ -928,6 +928,18 @@ def main() -> None:
                       f"    tier={verdict.get('tier')} "
                       f"images={len(post.get('media') or [])}\n"
                       f"    {post.get('url')}\n", flush=True)
+                # Until 2026-11-04 this went to stdout of a scheduled job and
+                # nowhere else. Never an "alert" for the family: a lead for the
+                # operator to open the photo and judge by eye.
+                if not args.dry_run:
+                    try:
+                        from carhunt import notify
+                        notify.send_telegram(
+                            f"🔎 Car Hunt: {label}\npost {post['id']} — {hit}\n"
+                            f"{post.get('url') or '(no link saved)'}\n"
+                            f"Open the photo and judge it by eye before telling anyone.")
+                    except Exception as e:
+                        print(f"  (telegram failed: {e})", flush=True)
             elif score >= threshold:
                 alerts += 1
                 print(f"\n  ALERT post {post['id']} score={score}\n"
