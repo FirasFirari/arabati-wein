@@ -597,7 +597,10 @@ const AR_DIGITS = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6
                    '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'};
 const trAr = s => (s || '').replace(/[٠-٩۰-۹]/g, d => AR_DIGITS[d]);
 const digitsOnly = s => trAr(s).replace(/\D/g, '');
-const normChassis = s => trAr(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+// O, I and Q are illegal in every VIN position: in a 17-character VIN they are
+// misread 0/1/0 ("MRO..." is Toyota Thailand "MR0..."). Mirrors normalize.py.
+const normChassis = s => { const v = trAr(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return v.length === 17 ? v.replace(/[OQ]/g, '0').replace(/I/g, '1') : v; };
 // Mirrors normalize.is_plate_shaped — change one, change both. A region marker
 // is one Arabic letter (not و), or two only with a digit attached.
 const PLATE_WORD = /^(?:ال)?لوح[ةه]$/;
@@ -1824,6 +1827,7 @@ def main() -> None:
     _AR_LETTERS = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ة": "ه",
                                  "ى": "ي", "ؤ": "و", "ئ": "ي"})
     _AR_MARKS = re.compile("[\u0640\u064B-\u0670\u065F]")
+    _VIN_FOLD = str.maketrans("OIQ", "010")      # mirrors normalize.norm_chassis
 
     def tr_ar(value):
         return str(value or "").translate(_AR_DIGITS)
@@ -1832,7 +1836,8 @@ def main() -> None:
         return re.sub(r"\D", "", tr_ar(value))
 
     def norm_chassis(value):
-        return re.sub(r"[^A-Z0-9]", "", tr_ar(value).upper())
+        v = re.sub(r"[^A-Z0-9]", "", tr_ar(value).upper())
+        return v.translate(_VIN_FOLD) if len(v) == 17 else v
 
     def norm_ar(value):
         return _AR_MARKS.sub("", str(value or "").lower().translate(_AR_LETTERS))

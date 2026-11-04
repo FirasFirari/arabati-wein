@@ -50,3 +50,9 @@ def test_prose_in_identifier_field():
     assert has_prose("no match for 7654321 here")
     assert not has_prose("JTDBR32E72001")
     assert strip_prose("JTDBR32E72001") == "JTDBR32E72001"
+
+
+def test_vin_letters_that_cannot_exist_fold_only_at_17_characters():
+    assert norm_chassis("MROAW12GX00002178") == "MR0AW12GX00002178"
+    assert norm_chassis("mro aw12gx 0000 2178") == "MR0AW12GX00002178"
+    assert norm_chassis("MRO12345") == "MRO12345"          # a fragment: left alone

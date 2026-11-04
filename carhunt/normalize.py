@@ -11,10 +11,20 @@ def digits_only(value: str) -> str:
     return re.sub(r"\D", "", (value or "").translate(ARABIC_INDIC))
 
 
+# O, I and Q are illegal in every VIN position (ISO 3779), so in a
+# 17-character VIN they can only be misreads of 0/1/0. Measured 2026-11-04: 45
+# stored "MRO..." VINs were Toyota Thailand "MR0..." and could not be found by
+# anyone typing the real number. Folded ONLY at 17 characters: shorter
+# fragments (Japanese frame numbers, model codes) may legitimately hold them.
+# The JS normChassis in export_site.py mirrors this -- change one, change both.
+_VIN_FOLD = str.maketrans("OIQ", "010")
+
+
 def norm_chassis(value: str) -> str:
     """Uppercase alphanumerics only (VINs and partial chassis fragments)."""
     value = (value or "").translate(ARABIC_INDIC)
-    return re.sub(r"[^A-Z0-9]", "", value.upper())
+    v = re.sub(r"[^A-Z0-9]", "", value.upper())
+    return v.translate(_VIN_FOLD) if len(v) == 17 else v
 
 
 # an Arabic region letter glued straight onto the digits, no separator:

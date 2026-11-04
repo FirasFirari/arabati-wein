@@ -2,9 +2,8 @@
 
 Design rule: identifiers come from the parser, judgement stays with the LLM.
 0 fabrications is structural -- it only ever emits digits present in the line.
-Every case is synthetic. `xfail(strict=True)` marks a KNOWN defect found in
-the 2026-11-04 audit: when it is fixed the test passes, strict turns that into
-a failure, and the marker must be removed.
+Every case is synthetic. The last three were defects found by the
+2026-11-04 audit (recorded as strict xfail until fixed the same week).
 """
 import pytest
 
@@ -64,16 +63,13 @@ def test_parser_never_emits_digits_absent_from_the_text():
         assert "".join(c for c in v["chassis"] if c.isdigit()) in digits
 
 
-@pytest.mark.xfail(strict=True, reason="audit 2026-11-04: a year range is emitted as a chassis")
 def test_year_range_is_not_a_chassis():
     assert "2015-2016" not in chassis("كورولا 2015-2016 ابيض 331245")
 
 
-@pytest.mark.xfail(strict=True, reason="audit 2026-11-04: two dash-joined chassis become one row")
 def test_dash_joined_chassis_are_two_rows():
     assert chassis("اكسنت 313267-680869") == ["313267", "680869"]
 
 
-@pytest.mark.xfail(strict=True, reason="audit 2026-11-04: a list index is glued onto the chassis")
 def test_list_index_is_not_part_of_the_chassis():
     assert chassis("1-292063 كورولا") == ["292063"]

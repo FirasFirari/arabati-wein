@@ -322,12 +322,15 @@ def gate(post_id: int, entries: list[dict]) -> list[str]:
     from .gates import check_entries
     with _reader() as conn:
         row = conn.execute("SELECT text FROM posts WHERE id = ?", (post_id,)).fetchone()
-        ocr, unread = conn.execute(
-            "SELECT group_concat(ocr_text, char(10)), "
-            "       COALESCE(SUM(ocr_at IS NULL), 0) FROM media WHERE post_id = ?",
-            (post_id,)).fetchone()
-    text = "\n".join(x for x in ((row["text"] if row else None), ocr) if x)
-    changes = check_entries(entries, text, photos_unread=bool(unread))
+        media = conn.execute(
+            "SELECT ocr_text, ocr_at, COALESCE(ocr_engine, '') FROM media WHERE post_id = ?",
+            (post_id,)).fetchall()
+    doubtful = ("+disagree", "+unverified")
+    trusted = [m[0] for m in media if m[0] and not m[2].endswith(doubtful)]
+    shaky = [m[0] for m in media if m[0] and m[2].endswith(doubtful)]
+    text = "\n".join(x for x in [(row["text"] if row else None), *trusted] if x)
+    changes = check_entries(entries, text, photos_unread=any(m[1] is None for m in media),
+                            doubtful_text="\n".join(shaky))
     if changes:
         try:
             GATE_LOG.parent.mkdir(parents=True, exist_ok=True)

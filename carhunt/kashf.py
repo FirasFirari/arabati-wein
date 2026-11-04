@@ -165,6 +165,32 @@ def _is_year_token(run: str) -> bool:
     return bool(re.fullmatch(r"(19\d{2}|20[0-4]\d)", run))
 
 
+def _split_dashed(start: int, tok: str) -> list[tuple[int, int, str]]:
+    """Pieces of a dash-joined token that are identifiers on their own.
+
+    Found by the 2026-11-04 audit, each one row of garbage before:
+      * "2015-2016"      a model-year RANGE, not a chassis   -> dropped
+      * "1-292063"       a list index glued on                -> "292063"
+      * "313267-680869"  two cars' chassis on one line        -> two rows
+    A dash inside one identifier ("KMH-1234567", "1234-5678") is left alone.
+    """
+    if "-" not in tok:
+        return [(start, start + len(tok), tok)]
+    if re.fullmatch(r"(?:19|20)\d\d-(?:19|20)\d\d", tok):
+        return []
+    m = re.fullmatch(r"\d{1,3}-(\d{5,})", tok)
+    if m:
+        return [(start + m.start(1), start + m.end(1), m.group(1))]
+    parts = tok.split("-")
+    if len(parts) >= 2 and all(p.isdigit() and len(p) >= 5 for p in parts):
+        out, pos = [], start
+        for p in parts:
+            out.append((pos, pos + len(p), p))
+            pos += len(p) + 1
+        return out
+    return [(start, start + len(tok), tok)]
+
+
 def parse_line(line: str) -> list[dict]:
     """One list line -> EVERY vehicle on it.
 
@@ -238,11 +264,12 @@ def parse_line(line: str) -> list[dict]:
         out = []
         for m in re.finditer(r"[0-9A-Za-z][0-9A-Za-z\-]{3,}|\d[\d\-]*\d", s):
             tok = m.group(0).strip("-")
-            if len(re.sub(r"[^0-9]", "", tok)) < _MIN_CHASSIS:
-                continue
-            if _is_year_token(tok):
-                continue
-            out.append((m.start(), m.end(), tok))
+            for a, b, piece in _split_dashed(m.start() + m.group(0).index(tok), tok):
+                if len(re.sub(r"[^0-9]", "", piece)) < _MIN_CHASSIS:
+                    continue
+                if _is_year_token(piece):
+                    continue
+                out.append((a, b, piece))
         return out
 
     if plates and not _ids(work) and not labelled:
@@ -287,6 +314,9 @@ def parse_line(line: str) -> list[dict]:
             "contact": contact,
             "description": desc or None,
             "confident": bool(keys or colour) and not murky,
+            # a plate shape the parser could not resolve: the NUMBER itself is
+            # in doubt (unlike a merely unrecognised description)
+            "murky": murky,
             "source_line": line.strip(),
         })
     return out

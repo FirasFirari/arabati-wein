@@ -100,6 +100,10 @@ def main() -> None:
                 # Recovery/inventory lists are sightings of FOUND vehicles.
                 "status": "found",
                 "description": v["description"],
+                # carried into vehicles.low_confidence: shown with the doubt
+                # attached, never hidden (6,263 such rows had no flag)
+                **({"low_confidence": "plate shape the list parser could not resolve"}
+                   if v.get("murky") else {}),
             })
         tot_veh += len(vehicles)
         tot_res += len(out["residue"])

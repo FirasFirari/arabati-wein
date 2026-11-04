@@ -58,31 +58,43 @@ def grounded(value, runs: set[str]) -> bool:
     return all(any(p in r for r in runs) for p in parts)
 
 
-def check_entries(entries: list[dict], text: str, photos_unread: bool) -> list[str]:
-    """Gate `entries` IN PLACE against `text` (post text + photo OCR).
+DOUBTFUL_OCR = "read from a photo whose OCR reading is disputed or unverified"
+
+
+def check_entries(entries: list[dict], text: str, photos_unread: bool,
+                  doubtful_text: str = "") -> list[str]:
+    """Gate `entries` IN PLACE against `text` (post text + trusted photo OCR).
 
     Ungrounded values are nulled -- unless the post has photos that have not
     been OCR'd yet, in which case nothing can be checked and the row is kept
-    with a low_confidence reason instead. Prose in an identifier field is
-    stripped. Returns a description of every change, for the caller's log.
+    with a low_confidence reason instead. A value found ONLY in `doubtful_text`
+    (OCR where two readers disagreed, or a VIN read nobody has checked) is kept
+    and marked the same way: until 2026-11 such rows carried no flag at all.
+    Prose in an identifier field is stripped. Returns a description of every
+    change, for the caller's log.
     """
     runs = source_runs(text)
+    doubtful = source_runs(doubtful_text) if doubtful_text else set()
     changes = []
     for e in entries:
         for f in ("chassis", "plate"):
             if e.get(f) and has_prose(e[f]):
                 e[f] = strip_prose(e[f]) or None
                 changes.append(f"{f}: prose stripped")
-        unchecked = False
+        reason = None
         for f in GROUNDED_FIELDS:
             val = e.get(f)
             if not val or grounded(val, runs):
                 continue
+            if doubtful and grounded(val, doubtful):
+                reason = reason or DOUBTFUL_OCR
+                continue
             if photos_unread:
-                unchecked = True
+                reason = UNCHECKED_PHOTO
                 continue
             changes.append(f"{f}={val!r} not in the post or its OCR: nulled")
             e[f] = None
-        if unchecked and not e.get("low_confidence"):
-            e["low_confidence"] = UNCHECKED_PHOTO
+        if reason and not e.get("low_confidence"):
+            e["low_confidence"] = reason
+            changes.append(f"low_confidence: {reason}")
     return changes

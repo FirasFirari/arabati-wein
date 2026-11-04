@@ -90,3 +90,23 @@ def test_live_lane_still_raises_the_target_alert_for_free(tmpdb, test_config, ca
     pid = db.add_post("telegram:@x", "tg:@x:3", None, text)
     v = analyze_post(None, dict(test_config, general_sources=[]), pid, text, [], post_source="telegram:@x")
     assert v["score"] == 95 and v["tier"] == "identifier_scan"
+
+
+def test_a_value_only_in_disputed_ocr_is_kept_and_marked():
+    from carhunt.gates import DOUBTFUL_OCR
+    e = [{"chassis": "JTTEST01J3L410078"}]
+    check_entries(e, "كورولا", photos_unread=False,
+                  doubtful_text="JTTEST01J3L410078\n--- second read ---\nJTTEST01J3L410073")
+    assert e[0]["chassis"] == "JTTEST01J3L410078" and e[0]["low_confidence"] == DOUBTFUL_OCR
+
+
+def test_disputed_ocr_in_the_database_marks_the_row(tmpdb):
+    pid = db.add_post("telegram:@x", "tg:@x:9", None, "كورولا للبيع", ["b.jpg"])
+    con = sqlite3.connect(tmpdb)
+    con.execute("UPDATE media SET ocr_text = 'VIN JTTEST01J3L410078', ocr_at = '2026-11-01', "
+                "ocr_engine = 'gemini-ocr:m+disagree' WHERE post_id = ?", (pid,))
+    con.commit()
+    db.add_vehicles(pid, [{"chassis": "JTTEST01J3L410078"}])
+    got = con.execute("SELECT chassis, low_confidence FROM vehicles WHERE post_id = ?", (pid,)).fetchall()
+    con.close()
+    assert got[0][0] == "JTTEST01J3L410078" and got[0][1]
