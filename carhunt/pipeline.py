@@ -4,14 +4,33 @@ Order matters — each gate avoids spend the next one would incur:
 1. deterministic identifier scan   (free, and catches the case that matters)
 2. relevance pre-filter            (free, skips non-vehicle posts entirely)
 3. duplicate-content reuse         (free, reuses a verdict for a cross-post)
-4. tiered model call               (cheap screen, escalate only when needed)
+4. tiered model call               (ONLY when live scoring is switched on)
+
+Live scoring is OFF by default since 2026-11-04 (the owner's call: $0). It
+paid the Claude API for every relevant Telegram post (28 in the week before),
+and those writes skipped the grounding gate. With it off, step 4 leaves the
+post unscored and the free daily lane extracts it through the gated path.
+Steps 1-3 still run instantly: the target's own identifiers are matched the
+moment a post arrives, which is the only thing that can raise an alert.
 """
 from . import db
-from .analyzer import Analyzer
 from .prefilter import identifier_hit, is_relevant
 
 
-def analyze_post(analyzer: Analyzer, cfg: dict, post_id: int,
+def live_scoring(cfg: dict) -> bool:
+    """config.yaml `live_scoring.enabled` (default false: no paid calls)."""
+    return bool((cfg.get("live_scoring") or {}).get("enabled"))
+
+
+def make_analyzer(cfg: dict):
+    """The paid model client, or None when live scoring is off."""
+    if not live_scoring(cfg):
+        return None
+    from .analyzer import Analyzer
+    return Analyzer(cfg)
+
+
+def analyze_post(analyzer, cfg: dict, post_id: int,
                  text: str | None, media_paths: list[str],
                  post_source: str | None = None) -> dict:
     """Score one stored post, spending API budget only when necessary."""
@@ -63,7 +82,11 @@ def analyze_post(analyzer: Analyzer, cfg: dict, post_id: int,
             db.save_analysis(post_id, verdict)
             return verdict
 
-    # 4. pay for a model call
+    # 4. pay for a model call -- only if live scoring is on
+    if analyzer is None:
+        return {"score": None, "tier": "queued",
+                "reasons": "Stored. The target's identifiers were checked now; the "
+                           "full reading runs in the free daily lane."}
     verdict = analyzer.analyze(text, media_paths)
     db.save_analysis(post_id, verdict)
     return verdict

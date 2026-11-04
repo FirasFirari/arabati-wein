@@ -436,3 +436,23 @@ notify:
 # numbers belong here, never in code: the repository is public.
 publish:
   forbidden_contacts: []
+
+# Paid model scoring of live Telegram / intake-bot posts (carhunt/pipeline.py).
+# OFF since 2026-11-04: those posts are stored, checked at once for the target
+# car's identifiers (free), and extracted by the free daily lane through the
+# grounding gate. true = pay the Anthropic API per relevant post.
+live_scoring:
+  enabled: false
+
+# Dead-man checks on Healthchecks.io (carhunt/deadman.py). The project ping key
+# is under Project settings -> Ping key. Empty = no pings.
+healthchecks:
+  ping_key: ""
+
+# Backups (scripts/backup_db.py). Nightly local copies always run. The weekly
+# offsite copy runs only with an age RECIPIENT (public key, "age1...") and the
+# age binary installed; it is written encrypted to offsite_dir. Keep the
+# private key OFF this machine.
+backup:
+  age_recipient: ""
+  offsite_dir: ""       # default: <home>/My Drive/CarHunt backups

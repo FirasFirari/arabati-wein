@@ -11,15 +11,22 @@ import time
 from telethon import TelegramClient, events
 
 from . import db, health
-from .analyzer import Analyzer
 from .config import MEDIA_DIR, load_config
-from .pipeline import analyze_post
+from .pipeline import analyze_post, make_analyzer
 
 REPLY_TEMPLATE = """\
 Score: {score}/100
 {reasons}
 
 النتيجة: {score}/100 — {arabic_hint}"""
+
+
+QUEUED_REPLY = """\
+Received and saved, thank you. It was checked at once for the car's chassis
+and plate; every number in it is read in the daily review.
+
+وصل، شكراً. تم حفظ المنشور وفُحص فوراً بحثاً عن رقم الشاسي واللوحة المطلوبين،
+وتُقرأ كل الأرقام فيه ضمن المراجعة اليومية."""
 
 
 def _arabic_hint(score: int | None) -> str:
@@ -58,7 +65,7 @@ def _within_rate_limit(cfg: dict, sender_id: int) -> bool:
     return True
 
 
-async def handle(client: TelegramClient, analyzer: Analyzer, cfg: dict,
+async def handle(client: TelegramClient, analyzer, cfg: dict,
                  messages: list) -> None:
     first = messages[0]
     sender = await first.get_sender()
@@ -101,21 +108,23 @@ async def handle(client: TelegramClient, analyzer: Analyzer, cfg: dict,
     score = verdict.get("score")
     print(f"[{source_ref}] from {sender_name}: score={score}")
 
-    await first.reply(REPLY_TEMPLATE.format(
-        score=score if score is not None else "?",
-        reasons=verdict.get("reasons", verdict.get("error", "")),
-        arabic_hint=_arabic_hint(score),
-    ))
+    if verdict.get("tier") == "queued":
+        await first.reply(QUEUED_REPLY)
+    else:
+        await first.reply(REPLY_TEMPLATE.format(
+            score=score if score is not None else "?",
+            reasons=verdict.get("reasons", verdict.get("error", "")),
+            arabic_hint=_arabic_hint(score),
+        ))
 
     if score is not None and score >= cfg["matching"]["alert_threshold"]:
         alert = (f"🚨 Intake match from {sender_name} — score {score}/100\n"
                  f"{verdict.get('reasons', '')}\n{text or ''}")
-        try:
-            # Bots can only message users who started them: set telegram.alert_chat
-            # to your numeric user id and send the bot /start once from your account.
-            await client.send_message(cfg["telegram"]["alert_chat"], alert)
-        except Exception as e:
-            print(f"Alert delivery failed ({e}); verdict is stored in the database.")
+        # notify_chat_id is the operator chat the bot can reach; alert_chat
+        # ("me") is unreachable for a bot and silently dropped every alert.
+        from . import notify
+        if not await asyncio.to_thread(notify.send_telegram, alert):
+            print("Alert delivery failed; verdict is stored in the database.")
 
 
 async def main() -> None:
@@ -125,7 +134,7 @@ async def main() -> None:
         sys.exit("Set telegram.bot_token in config.yaml (create a bot via @BotFather)")
 
     db.init()
-    analyzer = Analyzer(cfg)
+    analyzer = make_analyzer(cfg)       # None unless live_scoring.enabled (paid)
     bot = TelegramClient("carhunt_bot", tg["api_id"], tg["api_hash"])
     await bot.start(bot_token=tg["bot_token"])
 

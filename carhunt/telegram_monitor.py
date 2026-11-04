@@ -12,9 +12,8 @@ import sys
 from telethon import TelegramClient, events
 
 from . import db, health
-from .analyzer import Analyzer
 from .config import MEDIA_DIR, load_config
-from .pipeline import analyze_post
+from .pipeline import analyze_post, make_analyzer
 
 
 def _alert_text(url: str | None, verdict: dict) -> str:
@@ -31,7 +30,19 @@ def _alert_text(url: str | None, verdict: dict) -> str:
     return "\n".join(lines)
 
 
-async def process_messages(client: TelegramClient, analyzer: Analyzer, cfg: dict,
+async def alert(client: TelegramClient, cfg: dict, text: str) -> None:
+    """Operator alert through the bot chat that works (notify_chat_id); the
+    account's own Saved Messages are the fallback."""
+    from . import notify
+    if await asyncio.to_thread(notify.send_telegram, text):
+        return
+    try:
+        await client.send_message(cfg["telegram"]["alert_chat"], text)
+    except Exception as e:
+        print(f"alert delivery failed ({e}); the verdict is stored")
+
+
+async def process_messages(client: TelegramClient, analyzer, cfg: dict,
                            source: str, messages: list) -> None:
     """Store + analyze one logical post (a single message or a whole album)."""
     first = messages[0]
@@ -63,10 +74,10 @@ async def process_messages(client: TelegramClient, analyzer: Analyzer, cfg: dict
     print(f"[{source_ref}] score={score} {verdict.get('reasons', verdict.get('error', ''))}")
 
     if score is not None and score >= cfg["matching"]["alert_threshold"]:
-        await client.send_message(cfg["telegram"]["alert_chat"], _alert_text(url, verdict))
+        await alert(client, cfg, _alert_text(url, verdict))
 
 
-async def backfill(client: TelegramClient, analyzer: Analyzer, cfg: dict,
+async def backfill(client: TelegramClient, analyzer, cfg: dict,
                    channel, limit: int) -> None:
     name = getattr(channel, "username", None) or str(channel.id)
     print(f"Backfilling last {limit} messages of {name}...")
@@ -101,7 +112,7 @@ async def main() -> None:
                  "(from https://my.telegram.org)")
 
     db.init()
-    analyzer = Analyzer(cfg)
+    analyzer = make_analyzer(cfg)       # None unless live_scoring.enabled (paid)
     client = TelegramClient(tg["session_name"], tg["api_id"], tg["api_hash"])
     await client.start()
 

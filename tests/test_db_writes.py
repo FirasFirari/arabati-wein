@@ -54,7 +54,7 @@ def test_add_post_dedups_on_source_ref(tmpdb):
 
 
 def test_save_analysis_writes_verdict_and_rows_together(tmpdb):
-    pid = db.add_post("telegram:@x", "tg:@x:2", None, "كورولا 613572")
+    pid = db.add_post("telegram:@x", "tg:@x:2", None, "كورولا 613572 او اكسنت 8264019")
     db.save_analysis(pid, {"score": 10, "vehicles": [{"chassis": "613572"}]})
     assert post(tmpdb, pid) == (10, 1)
     assert rows(tmpdb, pid) == [("613572", None)]
@@ -79,13 +79,13 @@ def test_duplicate_verdict_stores_no_rows(tmpdb):
 
 
 def test_low_confidence_survives_a_reingest(tmpdb):
-    pid = db.add_post("telegram:@x", "tg:@x:5", None, "VIN")
+    pid = db.add_post("telegram:@x", "tg:@x:5", None, "VIN JTTEST01J3L410078")
     db.add_vehicles(pid, [{"chassis": "JTTEST01J3L410078", "low_confidence": "two readers disagree"}])
     assert rows(tmpdb, pid) == [("JTTEST01J3L410078", "two readers disagree")]
 
 
 def test_a_failure_mid_save_rolls_back_the_verdict_too(tmpdb, monkeypatch):
-    pid = db.add_post("telegram:@x", "tg:@x:6", None, "x")
+    pid = db.add_post("telegram:@x", "tg:@x:6", None, "كورولا 613572 اكسنت 8264019")
     db.save_analysis(pid, {"score": 10, "vehicles": [{"chassis": "613572"}]})
 
     def boom(conn, post_id, rows):          # fails AFTER the verdict UPDATE ran

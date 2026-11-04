@@ -626,6 +626,9 @@ def main() -> None:
                          "image, that number now has something to be checked "
                          "against, and the gate covers the image half of the "
                          "corpus for the first time.")
+    ap.add_argument("--include-unread-photos", action="store_true",
+                    help="with --use-ocr, also score photo posts whose photos have "
+                         "no OCR text yet (their numbers cannot be grounded)")
     ap.add_argument("--verbose", action="store_true",
                     help="print every post as it starts and finishes. On a "
                          "long run this is the difference between diagnosing "
@@ -763,6 +766,22 @@ def main() -> None:
             print(f"deferring {len(too_big)} post(s) over {args.skip_over_chars} "
                   f"chars, left unscored for another provider: "
                   f"{[p['id'] for p in too_big][:12]}", flush=True)
+
+    if args.use_ocr and not (args.rescan_images or args.benchmark or args.include_unread_photos):
+        # A number a model reads straight off a photo that has no OCR text yet
+        # cannot be checked against anything (measured: 8.6% of chassis and
+        # 27% of plates from that path were in neither the post nor its OCR).
+        # Such posts wait for the OCR sweep, which reads each distinct image
+        # once and now clears its backlog in weeks, then come back here with
+        # text the grounding gate can check.
+        with closing(db.connect()) as conn:
+            unread = {r[0] for r in conn.execute(
+                "SELECT DISTINCT post_id FROM media WHERE ocr_at IS NULL")}
+        held = [p for p in posts if p["id"] in unread]
+        posts = [p for p in posts if p["id"] not in unread]
+        if held:
+            print(f"holding {len(held)} photo post(s) until their photos are OCR'd "
+                  f"(--include-unread-photos overrides)", flush=True)
 
     if args.use_ocr:
         attached = 0

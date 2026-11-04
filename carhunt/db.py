@@ -287,7 +287,9 @@ def save_analysis(post_id: int, verdict: dict) -> None:
             and verdict.get("score") is not None):          # failed call: keep what is stored
         vehicles = verdict.get("vehicles")
         if isinstance(vehicles, list):
-            rows = _vehicle_rows(post_id, [v for v in vehicles if isinstance(v, dict)])
+            entries = [v for v in vehicles if isinstance(v, dict)]
+            gate(post_id, entries)          # mutates the verdict's own entries too
+            rows = _vehicle_rows(post_id, entries)
     with write_tx() as conn:
         _write_verdict(conn, post_id, verdict)
         if rows is not None:
@@ -302,10 +304,40 @@ def add_vehicles(post_id: int, entries: list[dict]) -> int:
     every vehicle each time. An empty list is authoritative — it means the
     post genuinely holds no vehicles — so it still marks the post extracted.
     """
+    gate(post_id, entries)
     rows = _vehicle_rows(post_id, entries)
     with write_tx() as conn:
         _write_vehicles(conn, post_id, rows)
     return len(entries)
+
+
+GATE_LOG = DATA_DIR / "logs" / "gate.log"
+
+
+def gate(post_id: int, entries: list[dict]) -> list[str]:
+    """The grounding gate (carhunt/gates.py) for EVERY lane, against the post's
+    text plus its photo OCR. Read outside any write transaction."""
+    if not entries:
+        return []
+    from .gates import check_entries
+    with _reader() as conn:
+        row = conn.execute("SELECT text FROM posts WHERE id = ?", (post_id,)).fetchone()
+        ocr, unread = conn.execute(
+            "SELECT group_concat(ocr_text, char(10)), "
+            "       COALESCE(SUM(ocr_at IS NULL), 0) FROM media WHERE post_id = ?",
+            (post_id,)).fetchone()
+    text = "\n".join(x for x in ((row["text"] if row else None), ocr) if x)
+    changes = check_entries(entries, text, photos_unread=bool(unread))
+    if changes:
+        try:
+            GATE_LOG.parent.mkdir(parents=True, exist_ok=True)
+            fields = sorted({c.split("=")[0].split(":")[0] for c in changes})
+            with open(GATE_LOG, "a", encoding="utf-8") as f:
+                f.write(f"{datetime.datetime.now().isoformat(timespec='seconds')} "
+                        f"post {post_id}: {len(changes)} change(s) {fields}\n")
+        except OSError:
+            pass
+    return changes
 
 
 _INSERT_VEHICLE = (
