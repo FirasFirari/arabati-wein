@@ -18,6 +18,7 @@ import re
 import sys
 
 from . import db
+from . import publish_guard
 from .aliases import ALIASES
 from .config import PROJECT_ROOT, load_config
 
@@ -1764,6 +1765,11 @@ def main() -> None:
 
 
 
+    # Numbers the owner has ruled must never be published (config.yaml
+    # publish.forbidden_contacts). A contact holding one is dropped; inside
+    # free text it is masked. publish_guard re-checks the packed payload below.
+    forbidden = publish_guard.forbidden_patterns()
+
     # keep the payload lean: tens of thousands of records ship to the browser
     records = []
     for v in vehicles:
@@ -1783,6 +1789,11 @@ def main() -> None:
             "seen_at": (v.get("seen_at") or "")[:10] or None,
             "model_key": trim(v.get("model_key"), 30),
         }
+        if forbidden:
+            if publish_guard.contains(rec.get("contact"), forbidden):
+                rec["contact"] = None
+            for field in ("description", "location"):
+                rec[field] = publish_guard.mask(rec.get(field), forbidden)
         rec = {k: val for k, val in rec.items() if val is not None}
         if v.get("from_photo"):
             # read by a vision model from a photo — less reliable than a typed
@@ -2092,6 +2103,14 @@ def main() -> None:
         stats_js=js_literal(stats), fbkind_js=js_literal(fb_kind),
         core_url=core_url, detail_url=detail_url,
         updated=datetime.date.today().isoformat())
+    # Refuse to write a build that would publish what must not be published.
+    # Checked on the bytes that ship, decompressed -- grep over the source
+    # cannot see inside a gzip (that is how a ruled-out number stayed live).
+    findings = (publish_guard.scan_payload("core.bin", core_blob, forbidden)
+                + publish_guard.scan_payload("detail.bin", detail_blob, forbidden)
+                + publish_guard.scan_html(OUT.name, html, forbidden))
+    if findings:
+        sys.exit("publish_guard REFUSED the build, nothing written:\n  " + "\n  ".join(findings))
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(html, encoding="utf-8")
     (OUT.parent / "core.bin").write_bytes(core_blob)

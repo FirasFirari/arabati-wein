@@ -39,6 +39,7 @@ except Exception:
 
 import requests
 
+from carhunt import publish_guard
 from carhunt.config import PROJECT_ROOT, load_config
 from deploy_allowlist import ALLOW, REQUIRED
 
@@ -84,6 +85,12 @@ def stage() -> dict:
     missing = [r for r in REQUIRED if "/" + r not in files]
     if missing:
         sys.exit(f"REFUSED: required files missing from site/deploy: {missing}")
+    # What ships is checked as visitors receive it: payloads decompressed, HTML
+    # as built. A number the owner ruled out stayed live inside detail.bin
+    # because grep over the source cannot see into a gzip.
+    findings = publish_guard.scan_dir(DEPLOY_DIR)
+    if findings:
+        sys.exit("REFUSED by publish_guard:\n  " + "\n  ".join(findings))
     return files
 
 

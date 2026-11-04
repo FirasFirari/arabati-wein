@@ -1,0 +1,21 @@
+[project]
+name = "arabati-wein"
+version = "0.0.0"
+description = "Free public registry of vehicles looted or lost in the Sudan war (mycarsd.online)"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["private: needs the private config.yaml and data/; skipped in CI"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = [".venv*", "data", "private", "site"]
+
+[tool.ruff.lint]
+# Start from the rules that catch real breakage (syntax errors, undefined
+# names); widen to F401/F841 once the dead-code cleanup has landed.
+select = ["E9", "F63", "F7", "F82"]

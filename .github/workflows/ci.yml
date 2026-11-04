@@ -1,0 +1,33 @@
+name: ci
+
+# Public checks only. Private tests (real car profile, the database) are
+# skipped automatically: neither config.yaml nor data/ exists in this repo.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install test dependencies
+        run: python -m pip install pyyaml pytest ruff
+      - name: Secrets and identifiers
+        run: python scripts/check_no_secrets.py
+      - name: Lint (fatal errors)
+        run: python -m ruff check carhunt scripts tests
+      - name: Tests
+        run: python -m pytest -q

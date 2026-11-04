@@ -428,3 +428,11 @@ netlify:
 # site/resend_key.txt; until mycarsd.online is verified there it is a no-op.
 notify:
   resend_from: "Arabati Wein <alerts@mycarsd.online>"
+
+# Numbers that must NEVER appear on the published site, in any field or
+# spelling (Arabic-Indic digits, spaces, +249 / 0 prefix). carhunt/publish_guard.py
+# scans the decompressed payload for them before any write or deploy, and the
+# export drops a matching contact and masks it inside free text. Personal
+# numbers belong here, never in code: the repository is public.
+publish:
+  forbidden_contacts: []

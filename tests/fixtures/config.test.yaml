@@ -1,0 +1,20 @@
+# A FICTIONAL deployment profile for the public test suite.
+#
+# The real car profile lives only in the private config.yaml and must never be
+# committed. Every value below belongs to nobody: the WMI "XXX" is unassigned,
+# and the plate serial was picked to collide with nothing in the tests.
+car:
+  make: Toyota
+  model: Corolla
+  year: 2015
+  color: "White / أبيض"
+  vin: "XXXBB9HE5F7654321"
+  plate: "28461 / خ7"
+  registered_at: "Omdurman"
+
+matching:
+  alert_threshold: 70
+
+publish:
+  forbidden_contacts:
+    - "0123456789"   # the secrets checker's allow-listed example number
