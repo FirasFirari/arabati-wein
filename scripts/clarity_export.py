@@ -8,8 +8,14 @@ WHAT THIS CAN AND CANNOT DO — read before planning any analysis on it.
 
 The API breaks the dashboard down by at most three of these dimensions:
 
-    Browser · Device · Country/Region · OS · Source · Medium · Campaign
+    Browser · Device · Country · OS · Source · Medium · Campaign
     · Channel · URL
+
+**Send `Country`, not `Country/Region`.** The reference spells it with the
+slash, but the API silently DROPS that dimension: the 10-28 and 11-04
+"country-device-url" pulls came back as plain Device x URL and each wasted
+one of the 10 daily calls. `Country` works (verified 2026-11-04). The old
+spelling is still accepted on the command line and rewritten.
 
 **CUSTOM TAGS ARE NOT A DIMENSION.** The page sends the raw search text as a
 Clarity custom tag (`clarity('set','search_query',…)` in export_site.py), and
@@ -34,7 +40,7 @@ HARD QUOTAS, and they are small:
 
 Usage:
     python scripts\\clarity_export.py --days 3
-    python scripts\\clarity_export.py --days 1 --dimensions Device Country/Region
+    python scripts\\clarity_export.py --days 1 --dimensions Device Country
     python scripts\\clarity_export.py --days 3 --save data\\clarity
 """
 import argparse
@@ -61,9 +67,11 @@ ENDPOINT = "https://www.clarity.ms/export-data/api/v1/project-live-insights"
 TOKEN_FILE = pathlib.Path("site/clarity_token.txt")
 
 VALID_DIMENSIONS = {
-    "Browser", "Device", "Country/Region", "OS",
+    "Browser", "Device", "Country", "OS",
     "Source", "Medium", "Campaign", "Channel", "URL",
 }
+# The documented spelling, which the API ignores without an error.
+DIMENSION_ALIASES = {"Country/Region": "Country"}
 
 
 def load_token() -> str:
@@ -126,6 +134,7 @@ def main() -> None:
                          "The API keeps no history, so a daily snapshot is the "
                          "only way to build a trend.")
     args = ap.parse_args()
+    args.dimensions = [DIMENSION_ALIASES.get(d, d) for d in args.dimensions]
 
     bad = [d for d in args.dimensions if d not in VALID_DIMENSIONS]
     if bad:
@@ -150,4 +159,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+    from carhunt import deadman
+    with deadman.tracked("clarity", "clarity"):
+        main()

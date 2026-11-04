@@ -35,13 +35,15 @@ $LightFlag = Join-Path $Root "data\PAUSED_LIGHT"
 # The always-on services started at logon, and the periodic jobs.
 $Services = "CarHunt Watchdog", "CarHunt Dashboard", "CarHunt Facebook Service",
             "CarHunt Intake Bot", "CarHunt Channel Monitor"
-$Periodic = "CarHunt Raw Sweep", "CarHunt Daily Free Lane", "CarHunt Clarity Snapshot", "CarHunt Photo OCR"
+$Periodic = "CarHunt Raw Sweep", "CarHunt Daily Free Lane", "CarHunt Clarity Snapshot", "CarHunt Photo OCR",
+            "CarHunt Backup"
 $Heavy = "CarHunt Facebook Service", "CarHunt Daily Free Lane", "CarHunt Photo OCR"
 
 # Matched on command line, deliberately narrow: the terminal Claude Code runs
 # in also mentions "Car Hunt" and must never be killed.
 $PyScripts = "openai_backlog|raw_sweep|daily_free_lane|kashf_verdicts|" +
-             "ingest_local_verdicts|fetch_watches|clarity_export|gvision_sweep|local_ocr_sweep|gemini_ocr_sweep"
+             "ingest_local_verdicts|fetch_watches|clarity_export|gvision_sweep|local_ocr_sweep|gemini_ocr_sweep|" +
+             "backup_db"
 
 function Get-CarHuntProcs([switch]$HeavyOnly) {
     Get-CimInstance Win32_Process | Where-Object {
@@ -82,6 +84,16 @@ function Show-Status {
     if ($chrome) { "    {0,-22} {1,6:N0} MB" -f "collector browser", $chrome }
 }
 
+# A Telegram line on pause and resume, so a pause is never silent (2026-11-02:
+# one ran 54 hours unnoticed). Best effort: a failure never blocks the switch.
+# Plain ASCII text: PowerShell 5.1 mangles UTF-8 on a native command line.
+function Send-Note([string]$Text) {
+    try {
+        Push-Location $Root
+        & python -c "import sys; from carhunt import notify; notify.send_telegram(sys.argv[1])" $Text 2>$null | Out-Null
+    } catch { } finally { Pop-Location }
+}
+
 function Stop-Procs($procs) {
     # loops first (they would respawn python in 30s), then python, then chrome
     foreach ($kind in "cmd.exe", "wscript.exe", "python", "chrome.exe") {
@@ -111,6 +123,8 @@ switch ($Action) {
         Start-Sleep -Seconds 3
         $after = (@(Get-CarHuntProcs) | Measure-Object WorkingSetSize -Sum).Sum / 1MB
         Write-Host ("Paused. Freed about {0:N0} MB." -f ($before - $after)) -ForegroundColor Yellow
+        $kind = if ($Light) { "LIGHT (collector + scoring stopped)" } else { "EVERYTHING" }
+        Send-Note ("Car Hunt PAUSED ($kind) at {0:HH:mm}. Dead-man alerts will fire until you Resume." -f (Get-Date))
         Write-Host "Nothing will restart (not even after a reboot) until you run Resume."
         Write-Host ""
         Show-Status
@@ -126,6 +140,7 @@ switch ($Action) {
         foreach ($t in $Services) {
             Start-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue }
         Write-Host "Resumed. Services are starting (the collector browser takes ~30s)." -ForegroundColor Green
+        Send-Note ("Car Hunt RESUMED at {0:HH:mm}. Missed jobs are caught up by the watchdog within 5 minutes." -f (Get-Date))
         Write-Host ""
         Start-Sleep -Seconds 10
         Show-Status

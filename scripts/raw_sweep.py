@@ -273,4 +273,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if PAUSE_FLAG.exists():
+        main()                      # prints "paused" and does nothing
+    else:
+        from carhunt import deadman
+        with deadman.tracked("raw_sweep", "raw-sweep"):
+            main()
