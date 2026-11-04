@@ -46,12 +46,14 @@ Usage:
         --workers 1 --budget 0.50                               # rehearse Kimi
 """
 import argparse
+import datetime
 import json
 import re
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -72,10 +74,8 @@ except Exception:
 from carhunt import db
 from carhunt.analyzer import (MAX_POST_IMAGES, Analyzer, _image_block,
                               _parse_verdict)
-from carhunt.config import load_config
+from carhunt.config import DATA_DIR, load_config
 from carhunt.gemini import GeminiClient
-from carhunt.moonshot import MoonshotClient
-from carhunt.vertex import VertexClient
 from carhunt.normalize import norm_chassis
 from carhunt.prefilter import identifier_hit
 
@@ -194,10 +194,88 @@ class Meter:
 
 def previously_cleared(post_id: int) -> str | None:
     """Has a human already looked at this post's photos and ruled it out?"""
-    row = db.connect().execute(
-        "SELECT json_extract(verdict, '$.verified_by_eye') v "
-        "FROM posts WHERE id = ?", (post_id,)).fetchone()
+    with closing(db.connect()) as conn:
+        row = conn.execute(
+            "SELECT json_extract(verdict, '$.verified_by_eye') v "
+            "FROM posts WHERE id = ?", (post_id,)).fetchone()
     return row["v"] if row else None
+
+
+# A verdict whose SAVE failed is not thrown away: the call that produced it
+# spent scarce free-tier quota. It goes to the spool and is written later by
+# --replay-spool (the daily lane does that right after each model's run).
+SPOOL_DIR = DATA_DIR / "spool"
+
+
+def spool_verdict(post_id: int, verdict: dict, rescan: bool, error: str) -> Path:
+    SPOOL_DIR.mkdir(parents=True, exist_ok=True)
+    path = SPOOL_DIR / f"verdicts_{datetime.date.today():%Y%m%d}.jsonl"
+    line = json.dumps({"id": post_id, "rescan": rescan, "error": error[:200],
+                       "verdict": verdict}, ensure_ascii=False)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+    return path
+
+
+def save_rescan(post_id: int, verdict: dict) -> None:
+    """A re-read must only ever ADD: keep the higher score, and keep the older
+    vehicle rows if the re-read found fewer, so a worse reading cannot
+    quietly delete registry entries or drop an existing candidate."""
+    with closing(db.connect()) as conn:
+        prev = conn.execute("SELECT score FROM posts WHERE id = ?", (post_id,)).fetchone()
+        prev_vehicles = conn.execute(
+            "SELECT COUNT(*) FROM vehicles WHERE post_id = ?", (post_id,)).fetchone()[0]
+    prev_score = (prev["score"] if prev else None) or 0
+    verdict["previous_score"] = prev_score
+    verdict["score"] = max(verdict.get("score") or 0, prev_score)
+    if len(verdict.get("vehicles") or []) >= prev_vehicles:
+        db.save_analysis(post_id, verdict)
+    else:
+        db.set_verdict(post_id, verdict)
+
+
+def replay_spool(target: str) -> int:
+    """Write spooled verdicts with NO API calls. Exit 0 when all landed, 3 when
+    some are still waiting (they stay in the file for the next replay).
+
+    A spooled post that some other lane has scored since is skipped rather
+    than overwritten: the spool must never clobber a newer verdict."""
+    files = (sorted(SPOOL_DIR.glob("verdicts_*.jsonl")) if target == "ALL"
+             else [Path(target)])
+    written = skipped = 0
+    left_total = 0
+    for path in files:
+        if not path.exists():
+            continue
+        left = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            try:
+                if rec.get("rescan"):
+                    save_rescan(rec["id"], rec["verdict"])
+                else:
+                    with closing(db.connect()) as conn:
+                        row = conn.execute("SELECT score FROM posts WHERE id = ?",
+                                           (rec["id"],)).fetchone()
+                    if row is None or row["score"] is not None:
+                        skipped += 1
+                        continue
+                    db.save_analysis(rec["id"], rec["verdict"])
+                written += 1
+            except Exception as e:                # still locked: keep it for next time
+                print(f"  replay post {rec.get('id')} failed again: {type(e).__name__} {e}",
+                      flush=True)
+                left.append(line)
+        if left:
+            path.write_text("\n".join(left) + "\n", encoding="utf-8")
+        else:
+            path.replace(path.with_suffix(".replayed"))
+        left_total += len(left)
+    print(f"spool replay: {written} written, {skipped} skipped (scored since), "
+          f"{left_total} still waiting", flush=True)
+    return 3 if left_total else 0
 
 
 def _edit_distance_le1(a: str, b: str) -> bool:
@@ -552,6 +630,10 @@ def main() -> None:
                     help="print every post as it starts and finishes. On a "
                          "long run this is the difference between diagnosing "
                          "a stall and guessing at one.")
+    ap.add_argument("--replay-spool", nargs="?", const="ALL", default=None, metavar="FILE",
+                    help="write verdicts whose save failed in an earlier run "
+                         "(data/spool/*.jsonl, or one FILE) and exit. No API "
+                         "calls; safe to re-run.")
     ap.add_argument("--list-models", action="store_true",
                     help="ask the provider what this key can call, then exit. "
                          "Worth doing first: model ids move, and a typo fails "
@@ -563,9 +645,12 @@ def main() -> None:
 
     cfg = load_config()
     db.init()
+    if args.replay_spool:
+        sys.exit(replay_spool(args.replay_spool))
     analyzer = Analyzer(cfg)
     if args.provider == "moonshot":
         # Same interface, different wire dialect — see carhunt/moonshot.py.
+        from carhunt.moonshot import MoonshotClient
         analyzer.fallback = MoonshotClient(cfg)
         if not analyzer.fallback.available:
             sys.exit("Moonshot is not configured — set MOONSHOT_API_KEY or "
@@ -574,6 +659,7 @@ def main() -> None:
         # Gemini models billed as a Cloud service, which is the ONLY form the
         # free-trial credit pays for — AI Studio's Gemini API is excluded.
         # See carhunt/vertex.py.
+        from carhunt.vertex import VertexClient
         analyzer.fallback = VertexClient(cfg)
         if not analyzer.fallback.available:
             sys.exit(f"Vertex is not usable: {analyzer.fallback.why_unavailable()}")
@@ -626,8 +712,8 @@ def main() -> None:
     rescan_model = args.rescan_model or analyzer.fallback.screen_model
 
     if args.rescan_images:
-        conn = db.connect()
-        ids = [r["id"] for r in conn.execute(RESCAN_SQL).fetchall()]
+        with closing(db.connect()) as conn:
+            ids = [r["id"] for r in conn.execute(RESCAN_SQL).fetchall()]
         if args.limit:
             ids = ids[:args.limit]
         posts = [p for p in (db.post_with_media(i) for i in ids) if p]
@@ -635,9 +721,9 @@ def main() -> None:
               f"re-read | model={rescan_model} at image detail HIGH "
               f"| budget ${args.budget:.2f}\n", flush=True)
     elif args.benchmark:
-        conn = db.connect()
         print("selecting benchmark posts...", flush=True)
-        ids = [r["id"] for r in conn.execute(BENCHMARK_SQL).fetchall()]
+        with closing(db.connect()) as conn:
+            ids = [r["id"] for r in conn.execute(BENCHMARK_SQL).fetchall()]
         posts = []
         for pid in ids:
             p = db.post_with_media(pid)
@@ -690,11 +776,12 @@ def main() -> None:
 
     meter = Meter(args.budget, args.max_calls)
 
-    done = deep = errors = alerts = identifier_hits = ungrounded = 0
+    done = deep = errors = alerts = identifier_hits = ungrounded = save_errors = 0
+    spooled_to = None
     lock = threading.Lock()
 
     def work(post: dict) -> None:
-        nonlocal done, deep, errors, alerts, identifier_hits, ungrounded
+        nonlocal errors, save_errors, spooled_to
         if meter.exhausted:
             return
         t0 = time.time()
@@ -710,6 +797,25 @@ def main() -> None:
             print(f"  post {post['id']} failed: {type(e).__name__} {str(e)[:120]}",
                   flush=True)
             return
+        # Everything below touches the database. Before 2026-11-04 it was
+        # unguarded: one "database is locked" here escaped pool.map and
+        # cancelled every post still queued for the model, on 5 of 6 runs.
+        try:
+            finish(post, verdict, t0)
+        except Exception as e:
+            err = f"{type(e).__name__} {str(e)[:150]}"
+            if args.dry_run:
+                with lock:
+                    errors += 1
+                print(f"  post {post['id']} failed after the call: {err}", flush=True)
+                return
+            with lock:
+                save_errors += 1
+                spooled_to = spool_verdict(post["id"], verdict, args.rescan_images, err)
+            print(f"  post {post['id']} SAVE FAILED, verdict spooled: {err}", flush=True)
+
+    def finish(post: dict, verdict: dict, t0: float) -> None:
+        nonlocal done, deep, alerts, identifier_hits, ungrounded
         # A human already opened these photos and said no. Models re-read the
         # same image the same wrong way every time (post 2191's whitewashed
         # plate was claimed as the target serial on two separate runs), so an eye verdict
@@ -731,7 +837,8 @@ def main() -> None:
         grounding_source = post.get("text") or ""
         if args.use_ocr and post.get("_ocr"):
             grounding_source += chr(10) + post["_ocr"]
-        gate_applies = bool(args.use_ocr and post.get("_ocr")) or             not (post.get("media") or [])
+        gate_applies = (bool(args.use_ocr and post.get("_ocr"))
+                        or not (post.get("media") or []))
         if gate_applies:
             dropped = strip_ungrounded(verdict, grounding_source)
             if dropped:
@@ -777,23 +884,8 @@ def main() -> None:
                 with open(args.dry_run, "a", encoding="utf-8") as fh:
                     fh.write(line + "\n")
         elif args.rescan_images:
-            # This post already had a verdict. A re-read must only ever ADD:
-            # keep the higher score, and keep the older vehicle rows if the
-            # re-read found fewer, so a worse reading cannot quietly delete
-            # registry entries or drop an existing candidate.
-            conn2 = db.connect()
-            prev = conn2.execute(
-                "SELECT score FROM posts WHERE id = ?", (post["id"],)).fetchone()
-            prev_score = (prev["score"] if prev else None) or 0
-            prev_vehicles = conn2.execute(
-                "SELECT COUNT(*) FROM vehicles WHERE post_id = ?",
-                (post["id"],)).fetchone()[0]
-            verdict["previous_score"] = prev_score
-            verdict["score"] = max(verdict.get("score") or 0, prev_score)
-            if len(verdict.get("vehicles") or []) >= prev_vehicles:
-                db.save_analysis(post["id"], verdict)
-            else:
-                db.set_verdict(post["id"], verdict)
+            # This post already had a verdict; a re-read must only ever ADD.
+            save_rescan(post["id"], verdict)
         else:
             db.save_analysis(post["id"], verdict)
         if args.verbose:
@@ -827,13 +919,23 @@ def main() -> None:
                       f"spent | {errors} errors", flush=True)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        list(pool.map(work, posts))
+        for fut in as_completed([pool.submit(work, p) for p in posts]):
+            try:
+                fut.result()
+            except Exception as e:           # belt and braces: work() guards itself
+                with lock:
+                    errors += 1
+                print(f"  worker crashed: {type(e).__name__} {str(e)[:150]}", flush=True)
 
     print(f"\nscored {done} posts ({deep} on the deep tier), {errors} errors, "
           f"{identifier_hits} identifier hits, {alerts} over the alert threshold")
     print(f"grounding gate nulled {ungrounded} ungrounded field(s) on text-only posts")
     print(f"spend: ${meter.spent:.3f} across {meter.calls} calls"
           + ("  [BUDGET REACHED — rerun to continue]" if meter.exhausted else ""))
+    if save_errors:
+        print(f"SAVE FAILURES: {save_errors} verdict(s) spooled to {spooled_to}; "
+              f"run with --replay-spool to write them (no API calls)")
+        sys.exit(3)
 
 
 if __name__ == "__main__":
