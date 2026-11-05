@@ -363,7 +363,7 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
      collects nothing. Do not move this into innerHTML.
      It is revealed only when a search returns zero results. -->
 <div class="watch" id="watch-box" hidden>
-  <h2>لم نجد الرقم — سجّل تنبيهاً</h2>
+  <h2 id="watch-h">لم نجد الرقم — سجّل تنبيهاً</h2>
   <p>
     السجل يكبر يومياً. اترك رقم الشاسي أو اللوحة ووسيلة تواصل، وإذا ظهر هذا
     الرقم في أي منشور لاحقاً سنبلغك.
@@ -511,6 +511,8 @@ const EN = {
   src_telegram: 'Telegram', src_facebook: 'Facebook', src_intake: 'direct reports',
   emptyFilters: 'No vehicles match these filters.',
   emptyId: 'We did not find this number in the registry — that does not mean the vehicle is gone, only that it has not been sighted in any public post yet.',
+  watchH: 'Not found — register an alert',
+  watchHPartial: 'The results above match only part of this number and may be a different vehicle — if yours is not among them, register an alert',
   emptyText: 'No results for this search. Try the chassis or plate number — searching by number is far more accurate than by description.',
   showMore: 'Show more', chHasChassis: 'has chassis', chHasContact: 'has contact',
   chLoose: 'includes number-less sightings', chYear: 'year',
@@ -1067,6 +1069,10 @@ function queryCtx(query) {
 }
 function dscoreAt(i, ctx) {
   let sc = 0; const reasons = [];
+  // set when the record holds only a FRAGMENT of what was typed: a stored
+  // "016434" found by the full VIN JTMDF4EV7FJ016434 (2026-11-05). The registry
+  // does not have the whole number, so the watch must still be offered.
+  let fragment = false;
   if (ctx.qd.length >= 4) {
     const cn = IX.cn[i];
     if (cn.length >= 4 && ctx.qn.length >= 4) {
@@ -1082,7 +1088,10 @@ function dscoreAt(i, ctx) {
       // false lead. Mirrors watches.match_reason.
       const okIn = lo.includes(sh) && sh.length >= (qShorter ? 4 : 6)
         && sh.replace(/[^0-9]/g, '').length >= 5;
-      if (okEnd || okIn) { sc += 40 + sh.length * 8; reasons.push(t('r_ch', 'تطابق شاسي')); }
+      if (okEnd || okIn) {
+        sc += 40 + sh.length * 8; reasons.push(t('r_ch', 'تطابق شاسي'));
+        fragment = !qShorter;
+      }
     }
     if (!reasons.length && ctx.runs.length) {
       const pr = IX.pr[i];
@@ -1112,12 +1121,15 @@ function dscoreAt(i, ctx) {
   if (ctx.years.length && IX.yr[i] && ctx.years.indexOf(String(IX.yr[i])) !== -1) {
     sc += 20; reasons.push(t('r_year', 'تطابق سنة'));
   }
-  return sc > 0 ? { s: sc, reasons } : null;
+  // a fragment is the whole story only when nothing else matched (no plate,
+  // description, model or year)
+  return sc > 0 ? { s: sc, reasons, part: fragment && reasons.length === 1 } : null;
 }
 
 // ---- results ----
 const PAGE = 30;
 const SCORE = new Float64Array(N);
+const PART = new Uint8Array(N);   // 1 = matched only a fragment of the query (dscoreAt .part)
 let shown = PAGE;
 let list = [];       // dossier indices, already in display order
 let curCtx = null;   // active query context, for re-deriving the visible chips
@@ -1240,7 +1252,7 @@ async function render() {
     const i = scanOrder[k];
     if (dossierPasses(i, W)) {
       const r = dscoreAt(i, ctx);
-      if (r) { SCORE[i] = r.s; hits.push(i); }
+      if (r) { SCORE[i] = r.s; PART[i] = r.part ? 1 : 0; hits.push(i); }
     }
     if ((k & (CHUNK - 1)) === CHUNK - 1) {
       await yieldToUI();
@@ -1276,7 +1288,16 @@ async function render() {
     $more.hidden = true; $shownLbl.textContent = '';
     return;
   }
-  hideWatch();
+  // Results that each hold only a piece of the typed number (a list's 6-digit
+  // tail under a full VIN) are not "found": without this the person sees
+  // someone else's car and no way to register. Measured 2026-11-05: the RAV4
+  // JTMDF4EV7FJ016434 found only a Kia Rio "016434" and the form stayed hidden.
+  if (list.every(i => PART[i])) {
+    track('search_fragment_only', { search_query: query, search_results: list.length });
+    showWatch(query, 'partial');
+  } else {
+    hideWatch();
+  }
   paint();
 }
 
@@ -1289,8 +1310,12 @@ const $watch = document.getElementById('watch-box');
 const $watchForm = document.getElementById('watch-form');
 const $watchMsg = document.getElementById('watch-msg');
 
-function showWatch(query) {
+function showWatch(query, kind) {
   if (!$watch) return;
+  const h = document.getElementById('watch-h');
+  if (h) h.textContent = kind === 'partial'
+    ? t('watchHPartial', 'النتائج أعلاه تطابق جزءاً من الرقم فقط، وقد تكون عربة أخرى — إن لم تكن عربتك بينها، سجّل تنبيهاً')
+    : t('watchH', 'لم نجد الرقم — سجّل تنبيهاً');
   const idField = document.getElementById('w-id');
   // Prefill with what they actually typed, but never overwrite something they
   // have already edited — losing a half-typed number would be worse than not
