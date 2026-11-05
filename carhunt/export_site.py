@@ -87,7 +87,7 @@ TEMPLATE = r"""<!doctype html>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Amiri:wght@700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 :root {
-  --bg: #F8F4EC; --surface: #FFFFFF; --ink: #23313B; --muted: #6E7B84;
+  --bg: #F8F4EC; --surface: #FFFFFF; --ink: #23313B; --muted: #5A6670;
   --accent: #146C7C; --accent-ink: #FFFFFF; --line: #E3DCCC;
   --match: #1D7A46; --match-bg: #E4F2E9; --mid-bg: #FBEEDA; --mid: #8A5A18;
   --danger: #A33B2E; --danger-bg: #F7E5E0;
@@ -261,7 +261,7 @@ details.sources li a:hover { text-decoration: underline; }
 .watch .consent span { font-size: .85rem; color: var(--muted); line-height: 1.5; }
 .watch button {
   margin-top: 12px; padding: 11px 20px; border-radius: 8px; border: 0;
-  background: var(--accent, #2563eb); color: #fff; font: inherit;
+  background: var(--accent, #2563eb); color: var(--accent-ink, #fff); font: inherit;
   font-weight: 600; cursor: pointer;
 }
 .watch button[disabled] { opacity: .55; cursor: not-allowed; }
@@ -399,8 +399,8 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
   <ul id="sources-list"></ul>
 </details>
 
-<p class="stats" id="stats">جاري تحميل السجل…</p>
-<p class="detail-status" id="detail-status" hidden></p>
+<p class="stats" id="stats" role="status" aria-live="polite">جاري تحميل السجل…</p>
+<p class="detail-status" id="detail-status" role="status" aria-live="polite" hidden></p>
 <div id="results"></div>
 <div class="pager">
   <button id="more" type="button" hidden>عرض المزيد</button>
@@ -489,6 +489,17 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
 </div>
 
 __CLARITY__
+<noscript><p class="empty">هذه الصفحة تحتاج JavaScript. فعّله أو جرّب متصفحاً آخر.<br>This page needs JavaScript. Enable it or try another browser.</p></noscript>
+<script>
+(function () {
+  var ok = "noModule" in document.createElement("script") && "DecompressionStream" in window;
+  if (ok) return;
+  var msg = "\u0645\u062a\u0635\u0641\u062d\u0643 \u0642\u062f\u064a\u0645 \u0648\u0644\u0627 \u064a\u0633\u062a\u0637\u064a\u0639 \u0641\u062a\u062d \u0627\u0644\u0633\u062c\u0644. \u062d\u062f\u0651\u062b \u0627\u0644\u0645\u062a\u0635\u0641\u062d (Chrome \u0623\u0648 Safari). \u2014 Your browser is too old to open the registry. Please update Chrome or Safari.";
+  document.addEventListener("DOMContentLoaded", function () {
+    var s = document.getElementById("stats"); if (s) s.textContent = msg;
+  });
+})();
+</script>
 <script type="module">
 // The packed payload ships gzip-compressed and base64-encoded: at 355k rows
 // the raw JSON passed 29MB, which is both over the artifact ceiling and

@@ -80,13 +80,19 @@ exports.handler = async (event) => {
   ];
   if (note) lines.push(`  note: ${note.slice(0, 160)}`);
   lines.push("The hourly sweep checks it against all posts; a hit is a "
-             + "separate alert. Contact: python scripts\check_watches.py");
+             + "separate alert. Contact: python scripts\\check_watches.py");
 
   try {
     const r = await sendTelegram(token, chatId, lines.join("\n"));
-    console.log("telegram", r.status, r.body);
+    // A revoked token or a blocked bot fails here with the PC off and nobody
+    // told: make it unmissable in the function log (Netlify > Logs > Functions).
+    if (r.status < 200 || r.status >= 300) {
+      console.error("TELEGRAM ALERT NOT DELIVERED", r.status, String(r.body).slice(0, 200));
+    } else {
+      console.log("telegram", r.status);
+    }
   } catch (e) {
-    console.log("telegram failed:", e.message);
+    console.error("TELEGRAM ALERT NOT DELIVERED:", e.message);
   }
   // Always 200: a failure here must never make Netlify treat the submission
   // itself as failed. The hourly fetch and the Netlify email still exist.
