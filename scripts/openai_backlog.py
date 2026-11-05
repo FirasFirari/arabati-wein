@@ -798,10 +798,11 @@ def main() -> None:
     done = deep = errors = alerts = identifier_hits = ungrounded = save_errors = 0
     spooled_to = None
     lock = threading.Lock()
+    quota_spent = threading.Event()
 
     def work(post: dict) -> None:
         nonlocal errors, save_errors, spooled_to
-        if meter.exhausted:
+        if meter.exhausted or quota_spent.is_set():
             return
         t0 = time.time()
         if args.verbose:
@@ -811,9 +812,20 @@ def main() -> None:
             verdict = (rescan_one(analyzer, post, meter, rescan_model)
                        if args.rescan_images else analyze_one(analyzer, post, meter))
         except Exception as e:                      # keep the run alive
+            msg = str(e)
+            # The free tier's DAILY quota: every further call fails the same
+            # way. Stop this model's run instead of failing the rest of a
+            # 50,000-post queue one by one (5,058 such failures on 2026-11-05).
+            # A per-MINUTE 429 is not the daily quota and does not stop it.
+            if "429" in msg and "perminute" not in msg.replace(" ", "").lower():
+                if not quota_spent.is_set():
+                    quota_spent.set()
+                    print(f"  daily quota reached after {meter.calls} calls — stopping this "
+                          f"model's run; the posts stay queued", flush=True)
+                return
             with lock:
                 errors += 1
-            print(f"  post {post['id']} failed: {type(e).__name__} {str(e)[:120]}",
+            print(f"  post {post['id']} failed: {type(e).__name__} {msg[:120]}",
                   flush=True)
             return
         # Everything below touches the database. Before 2026-11-04 it was
