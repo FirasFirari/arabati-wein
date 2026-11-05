@@ -319,14 +319,18 @@ def near_miss(value: str, car: dict) -> str | None:
     chassis = norm_chassis(car.get("vin") or "")
     if not chassis:
         return None
-    tails = {chassis[-n:] for n in (6, 7, 8) if len(chassis) > n}
     token = norm_chassis(value)
     if len(token) < 6:
         return None
-    for tail in tails:
-        for window in {token, token[-len(tail):], token[:len(tail)]}:
-            if len(window) >= 6 and window != tail and _edit_distance_le1(window, tail):
-                return f"{token} is one character from target tail {tail}"
+    # Compare as MANY characters as the number actually has (up to 8). Until
+    # 2026-11-05 a 7-digit number was also tried against the 6-digit tail, so a
+    # number one off in its last 6 digits but two off across all 7 was raised
+    # for an eye check -- a Kia Rio in a Rio list.
+    n = min(len(token), 8, len(chassis) - 1)
+    tail = chassis[-n:]
+    for window in {token[-n:], token[:n]}:
+        if window != tail and _edit_distance_le1(window, tail):
+            return f"{token} is one character from target tail {tail}"
     return None
 
 

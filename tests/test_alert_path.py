@@ -40,3 +40,14 @@ def test_target_number_in_a_registry_row_is_found(tmpdb, car):
     last = con.execute("SELECT MAX(id) FROM vehicles").fetchone()[0]
     assert raw_sweep.target_vehicle_scan(con, car, last) == []     # incremental
     con.close()
+
+
+def test_near_miss_uses_every_digit_the_number_has(car):
+    pytest.importorskip("openai")
+    from openai_backlog import near_miss
+    tail7 = car["vin"][-7:]                                    # fictional: 7654321
+    two_off = "8" + tail7[1:4] + "9" + tail7[5:]                # differs at 2 of 7
+    assert near_miss(two_off, car) is None                      # was a "near miss" via 6 digits
+    assert near_miss(tail7[:3] + "9" + tail7[4:], car)          # one off at 7: still raised
+    assert near_miss(tail7[1:4] + "9" + tail7[5:], car)         # a 6-digit fragment, one off
+    assert near_miss(tail7, car) is None                        # exact is a HIT, not a near miss
