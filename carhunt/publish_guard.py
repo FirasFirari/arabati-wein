@@ -118,7 +118,12 @@ def mask_foreign_phones(text, own_contact, replacement: str = "[رقم محذو�
 def scan_detail_privacy(detail: dict) -> list[str]:
     """Phone numbers in shipped free text that belong to no shipped contact."""
     tables = detail.get("t") or {}
-    contacts = {_last9(str(c).translate(_DIGIT_FOLD)) for c in (tables.get("contact") or []) if c}
+    contacts = set()
+    for c in tables.get("contact") or []:
+        folded = str(c or "").translate(_DIGIT_FOLD)
+        contacts.add(_last9(folded))
+        # a contact field often holds two numbers ("09.. / 01.."): each counts
+        contacts.update(_last9(m.group(0)) for m in PHONE.finditer(folded))
     bad = 0
     for field in ("description", "location"):
         for value in tables.get(field) or []:

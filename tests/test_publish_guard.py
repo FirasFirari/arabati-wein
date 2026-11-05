@@ -73,3 +73,9 @@ def test_guard_refuses_a_stray_number_in_shipped_text():
     assert g.scan_detail_privacy(detail)
     detail["t"]["description"] = ["call 0912345678"]
     assert g.scan_detail_privacy(detail) == []
+
+
+def test_a_contact_field_with_two_numbers_covers_both():
+    detail = {"t": {"contact": ["0912345678 / 0123456789"],
+                    "description": ["call 0912345678"], "location": []}}
+    assert g.scan_detail_privacy(detail) == []
