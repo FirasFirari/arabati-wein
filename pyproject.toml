@@ -18,4 +18,4 @@ extend-exclude = [".venv*", "data", "private", "site"]
 [tool.ruff.lint]
 # Start from the rules that catch real breakage (syntax errors, undefined
 # names); widen to F401/F841 once the dead-code cleanup has landed.
-select = ["E9", "F63", "F7", "F82"]
+select = ["E9", "F63", "F7", "F82", "F401"]

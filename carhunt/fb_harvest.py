@@ -28,10 +28,8 @@ Usage:
 import argparse
 import asyncio
 import hashlib
-import json
 import random
 import re
-import sys
 
 from . import db
 from .analyzer import sniff_media_type
@@ -42,49 +40,6 @@ PROFILE_DIR = PROJECT_ROOT / "data" / "browser_profile"
 
 # what actually surfaces vehicles: recovery lists, sightings, and the model
 DEFAULT_QUERIES = ["كشف", "حصر", "موجودة", "مفقودة", "كورولا", "كرولا", "شاسي"]
-
-# Facebook VIRTUALISES the feed: posts scrolled past are deleted from the DOM.
-# So we cannot scroll to the bottom and then read — we must harvest
-# incrementally, accumulating into a page-level store that survives the
-# recycling. This installs that store once per page.
-FEED_COLLECTOR_JS = r"""
-() => {
-  if (window.__ch) return 'already';
-  window.__ch = new Map();
-  window.__chCollect = () => {
-    document.querySelectorAll('div[role="button"]').forEach(b => {
-      const t = (b.textContent || '').trim();
-      if (t === 'See more' || t === 'عرض المزيد') b.click();
-    });
-    const feed = document.querySelector('[role="feed"]');
-    if (!feed) return 0;
-    const clean = el => (el.innerText || '').split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length > 2 && l !== 'Facebook' && l !== 'Follow' &&
-                   l !== 'Join' && !l.startsWith('Comment as') &&
-                   l !== 'See more' && l !== 'See less' && l !== 'All reactions:')
-      .join('\n');
-    for (const child of feed.children) {
-      const text = clean(child);
-      if (text.length < 60) continue;
-      const a = [...child.querySelectorAll('a')]
-        .map(x => x.href)
-        .find(h => /\/posts\/|\/permalink\/|multi_permalinks/.test(h));
-      const link = a ? a.split('?')[0] : null;
-      const key = link || text.slice(0, 120);
-      const prev = window.__ch.get(key);
-      // keep the fullest version seen (a post may be captured mid-expansion)
-      if (!prev || text.length > prev.text.length) {
-        window.__ch.set(key, { text, link });
-      }
-    }
-    return window.__ch.size;
-  };
-  return 'installed';
-}
-"""
-
-DRAIN_JS = "() => [...window.__ch.values()]"
 
 # Clicking "See more" and reading in the same call returns the OLD text —
 # React has not re-rendered yet. Expand first, wait, then extract.

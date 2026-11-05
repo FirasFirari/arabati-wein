@@ -9,7 +9,6 @@ path would mean re-earning all of that, and this project has already paid for
 those gates once each.
 
     python scripts\\kashf_verdicts.py --out data\\kashf_w1          # build
-    python scripts\\verify_wave.py ...                              # optional
     python scripts\\ingest_local_verdicts.py data\\kashf_w1\\verdicts_kashf.json ^
         --batch data\\kashf_w1\\batch_kashf.json --tier kashf_parser
 
@@ -41,7 +40,6 @@ except Exception:
     pass
 
 from carhunt import db
-from carhunt.aliases import ALIASES
 from carhunt.kashf import looks_like_kashf, parse
 
 # canonical model key -> ("Make", "Model") for the vehicle row. The key is

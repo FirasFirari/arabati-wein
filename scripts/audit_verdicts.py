@@ -26,7 +26,7 @@ Every check here exists because something got past a softer one:
     family is searching for.
 
 Usage:
-    python scripts\\audit_verdicts.py data\\benchmark_moonshot.jsonl
+    python scripts\\audit_verdicts.py data\\benchmark_gemini.jsonl
     python scripts\\audit_verdicts.py FILE --sample 12 > report.txt
 """
 import argparse

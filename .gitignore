@@ -51,6 +51,7 @@ site/static/sitemap.xml
 # ---- environments, caches, logs ----
 .venv*/
 .firecrawl/
+.wrangler/
 .claude/
 __pycache__/
 *.pyc

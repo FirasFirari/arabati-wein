@@ -1,7 +1,10 @@
-anthropic>=1.0
-telethon>=1.36
 PyYAML>=6.0
-requests>=2.31   # Netlify deploy / watch fetch, Resend email
-openai>=1.0      # fallback provider when Claude is unavailable (carhunt/fallback.py)
+requests>=2.31   # Netlify deploy / watch fetch, Clarity, Cloudflare checks
+telethon>=1.36   # Telegram channel monitor and intake bot
+playwright>=1.40 # Facebook collector (carhunt/fb_service.py); then: playwright install chromium
+openai>=1.0      # OpenAI-compatible client for the Gemini free tier (carhunt/gemini.py, scripts/gemini_ocr_sweep.py)
+anthropic>=1.0   # carhunt/analyzer.py prompt/verdict layer (live paid scoring is OFF by default)
 qrcode>=7.4      # QR login for Telegram (carhunt/tg_login.py)
 pillow>=10.0     # image handling for qrcode
+# development: pytest, ruff (see pyproject.toml); node for the JS parity tests;
+# the wrangler CLI for scripts/cloudflare_deploy.py

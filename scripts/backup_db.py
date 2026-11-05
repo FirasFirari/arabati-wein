@@ -48,7 +48,7 @@ try:
 except Exception:
     pass
 
-from carhunt import deadman, health  # noqa: E402
+from carhunt import deadman  # noqa: E402
 from carhunt.config import DATA_DIR, load_config  # noqa: E402
 
 BACKUPS = DATA_DIR / "backups"

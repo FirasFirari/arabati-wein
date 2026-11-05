@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import db, health
 from . import watches as watchlib
-from .config import DATA_DIR, load_config
+from .config import load_config
 
 SERVICES = [
     ("channel_monitor", "Telegram channels"),

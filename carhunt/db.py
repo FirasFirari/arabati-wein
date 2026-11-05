@@ -378,23 +378,6 @@ def _write_vehicles(conn, post_id: int, rows: list[tuple]) -> None:
     conn.execute("UPDATE posts SET extracted = 1 WHERE id = ?", (post_id,))
 
 
-def posts_without_vehicles(limit: int = 500) -> list[dict]:
-    """Posts not yet run through vehicle extraction."""
-    with _reader() as conn:
-        rows = conn.execute(
-            "SELECT * FROM posts WHERE extracted = 0 ORDER BY id LIMIT ?", (limit,)
-        ).fetchall()
-        result = []
-        for row in rows:
-            item = dict(row)
-            item["media"] = [
-                m["path"]
-                for m in conn.execute(
-                    "SELECT path FROM media WHERE post_id = ?", (row["id"],)
-                ).fetchall()
-            ]
-            result.append(item)
-    return result
 
 
 # One car can be recorded many times: the same recovery list is reposted
@@ -536,23 +519,3 @@ def unanalyzed(limit: int = 500, newest_first: bool = False) -> list[dict]:
             result.append(item)
     return result
 
-
-def top_candidates(limit: int = 20, min_score: int = 40) -> list[dict]:
-    with _reader() as conn:
-        rows = conn.execute(
-            "SELECT * FROM posts WHERE score >= ? ORDER BY score DESC, seen_at DESC "
-            "LIMIT ?",
-            (min_score, limit),
-        ).fetchall()
-        result = []
-        for row in rows:
-            item = dict(row)
-            item["verdict"] = json.loads(row["verdict"]) if row["verdict"] else None
-            item["media"] = [
-                m["path"]
-                for m in conn.execute(
-                    "SELECT path FROM media WHERE post_id = ?", (row["id"],)
-                ).fetchall()
-            ]
-            result.append(item)
-    return result

@@ -12,7 +12,6 @@ token is ever rotated. It prints nothing secret.
 
 Token: NETLIFY_AUTH_TOKEN or site/netlify_token.txt, as the deploy script.
 """
-import json
 import os
 import pathlib
 import sys

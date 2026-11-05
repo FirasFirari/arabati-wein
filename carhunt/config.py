@@ -3,8 +3,8 @@
 `config.yaml` is private (gitignored): it holds API keys, Telegram secrets and
 the profile of the car this deployment is looking for. `config.example.yaml`
 documents every key. Nothing in the code base may hardcode an identifier from
-the car profile — read it through `car()` / `target_vin()` so a public copy of
-the code carries nobody's chassis or plate.
+the car profile — read it from `load_config()["car"]` so a public copy of the
+code carries nobody's chassis or plate.
 """
 import pathlib
 
@@ -25,25 +25,7 @@ def load_config() -> dict:
     return cfg
 
 
-def car() -> dict:
-    """The `car:` block — the vehicle this deployment searches for."""
-    try:
-        return load_config().get("car") or {}
-    except Exception:
-        return {}
 
-
-def target_vin() -> str:
-    return (car().get("vin") or "").strip()
-
-
-def section(name: str, default=None):
-    """One top-level block of config.yaml, `{}` (or `default`) if absent."""
-    try:
-        value = load_config().get(name)
-    except Exception:
-        value = None
-    return value if value is not None else ({} if default is None else default)
 
 
 def max_output_tokens(default: int = 64000) -> int:

@@ -28,7 +28,6 @@ poster's text is NEVER quoted, because it may carry the poster's phone number.
 import datetime
 import json
 import os
-import pathlib
 import re
 import sys
 import urllib.error

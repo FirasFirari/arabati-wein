@@ -22,7 +22,6 @@ leaves them out, so the dashboard shows no phone numbers.
 """
 import csv
 import json
-import pathlib
 import re
 
 from .config import DATA_DIR
@@ -219,7 +218,7 @@ _RAW_SQL = ("SELECT p.id, p.text, (SELECT group_concat(m.ocr_text, ' ') FROM med
 def raw_posts(conn, since_post_id: int = 0, extra_ids=None):
     """(post_id, text, ocr) for every post newer than `since_post_id`, plus
     the older posts in `extra_ids` — those whose photos were OCR'd since the
-    last sweep (scripts/local_ocr_sweep.py reads old photos, newest first)."""
+    last sweep (scripts/gemini_ocr_sweep.py reads old photos too)."""
     yield from conn.execute(_RAW_SQL + "WHERE p.id > ?", (since_post_id,))
     old = sorted(i for i in (extra_ids or ()) if i <= since_post_id)
     for i in range(0, len(old), 500):

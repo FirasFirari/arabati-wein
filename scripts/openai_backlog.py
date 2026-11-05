@@ -1,15 +1,13 @@
-"""Clear the unscored backlog through OpenAI or Moonshot instead of Claude.
+"""Score the unscored backlog on an OpenAI-compatible provider: the daily $0 lane.
 
-The normal path is Claude-first with OpenAI only as a failure fallback. This
-runs the same two-tier logic deliberately on another provider, for when the
-Claude budget is the thing that is blocked. Verdicts are saved in exactly the
-shape the Claude path writes, so the registry, dashboard and alerts do not
-care which provider answered — `provider` on each verdict records it, and
-`tier` is prefixed with the provider name for the same reason.
-
-`--provider moonshot` swaps in the Kimi client (carhunt/moonshot.py). Nothing
-downstream of the call changes: same system prompt, same JSON contract, same
-grounding gate, same deterministic identifier re-check, same meter.
+The scheduled daily lane (scripts/daily_free_lane.py) runs this on the Gemini
+FREE tier (`--provider gemini`, carhunt/gemini.py). Verdicts are saved in the
+same shape every lane writes, so the registry, dashboard and alerts do not care
+which provider answered — `provider` on each verdict records it, and `tier` is
+prefixed with the provider name for the same reason. `--provider openai` uses
+the paid OpenAI fallback client (carhunt/fallback.py). The Moonshot and Vertex
+clients were removed on 2026-11-05 (rejected / the lane that ran up the $646
+bill); git history keeps them.
 
 What it is looking for: an IDENTIFIER — a chassis or plate number — either
 written in the post text or legible in a photo. Not a resemblance. There is
@@ -32,18 +30,15 @@ So routing is by CONTENT, not by the screen's opinion:
   * it is resumable: only unscored posts are picked up, and each verdict is
     saved as it arrives, so an interrupted run loses at most one call
 
-  * every verdict from a TEXT-ONLY post goes through the grounding gate
-    before it is written: any chassis/plate/contact/price whose digits are
-    absent from that post's own text is nulled. Posts WITH photos skip the
-    gate — a VIN read off a compliance plate is absent from the text by
-    definition, and gating it there deletes the whole point of the pass
+  * every verdict goes through the grounding gate (carhunt/gates.py, via
+    db.add_vehicles) against the post text + its photo OCR; with --use-ocr,
+    photo posts wait until their photos have OCR text to be checked against
 
 Usage:
     python scripts\\openai_backlog.py --limit 5 --budget 0.25   # rehearse
     python scripts\\openai_backlog.py                           # the backlog
-    python scripts\\openai_backlog.py --provider moonshot --list-models
-    python scripts\\openai_backlog.py --provider moonshot --limit 20 \\
-        --workers 1 --budget 0.50                               # rehearse Kimi
+    python scripts\\openai_backlog.py --provider gemini --list-models
+    python scripts\\openai_backlog.py --replay-spool          # saves that failed earlier
 """
 import argparse
 import datetime
@@ -581,8 +576,8 @@ def main() -> None:
                          "6 posts, and the one disagreement was reading a "
                          "photographed VIN plate — not text. ~15x cheaper.")
     ap.add_argument("--provider",
-                    choices=("openai", "moonshot", "gemini", "vertex"),
-                    default="openai",
+                    choices=("gemini", "openai"),
+                    default="gemini",
                     help="which API answers. Everything downstream of the call "
                          "— grounding, identifier re-check, meter, DB writes — "
                          "is identical; only the client changes.")
@@ -651,24 +646,8 @@ def main() -> None:
     if args.replay_spool:
         sys.exit(replay_spool(args.replay_spool))
     analyzer = Analyzer(cfg)
-    if args.provider == "moonshot":
-        # Same interface, different wire dialect — see carhunt/moonshot.py.
-        from carhunt.moonshot import MoonshotClient
-        analyzer.fallback = MoonshotClient(cfg)
-        if not analyzer.fallback.available:
-            sys.exit("Moonshot is not configured — set MOONSHOT_API_KEY or "
-                     "moonshot.api_key in config.yaml.")
-    elif args.provider == "vertex":
-        # Gemini models billed as a Cloud service, which is the ONLY form the
-        # free-trial credit pays for — AI Studio's Gemini API is excluded.
-        # See carhunt/vertex.py.
-        from carhunt.vertex import VertexClient
-        analyzer.fallback = VertexClient(cfg)
-        if not analyzer.fallback.available:
-            sys.exit(f"Vertex is not usable: {analyzer.fallback.why_unavailable()}")
-    elif args.provider == "gemini":
-        # Free-tier lane — see carhunt/gemini.py. UNBENCHMARKED until
-        # --benchmark + audit_verdicts.py say otherwise; --dry-run only.
+    if args.provider == "gemini":
+        # The free-tier lane — see carhunt/gemini.py.
         analyzer.fallback = GeminiClient(cfg)
         if not analyzer.fallback.available:
             sys.exit("Gemini is not configured — set GEMINI_API_KEY or "
@@ -678,11 +657,6 @@ def main() -> None:
     if not (analyzer.fallback and analyzer.fallback.available):
         sys.exit("OpenAI fallback is not configured (fallback.api_key).")
     if args.list_models:
-        # Vertex's OpenAI-compatible shim has no /models endpoint, so its
-        # client probes a candidate list instead of listing one.
-        if args.provider == "vertex":
-            print("\n".join(analyzer.fallback.list_models()))
-            return
         client = analyzer.fallback.client
         print("\n".join(sorted(m.id for m in client.models.list().data)))
         return

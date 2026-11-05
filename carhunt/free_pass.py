@@ -11,7 +11,6 @@ any time, including while the API is unavailable.
 Usage:
     python -m carhunt.free_pass
 """
-import sys
 
 from . import db
 from .config import load_config

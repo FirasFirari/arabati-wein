@@ -10,7 +10,7 @@ the process that admitted Kimi for text and rejected it for images.
 
 Gemini speaks the OpenAI Chat Completions wire format at
 `https://generativelanguage.googleapis.com/v1beta/openai/`, so like
-carhunt/moonshot.py this reuses the fallback module's block converter and
+the removed Moonshot client this reuses the fallback module's block converter and
 exposes the same three things `openai_backlog.py` touches: `.available`,
 `.complete()` and `.last_usage`.
 

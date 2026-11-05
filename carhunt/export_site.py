@@ -8,7 +8,6 @@ Usage:
                                               # CURRENT payload: no DB pass, no RAM,
                                               # core.bin/detail.bin stay byte-identical
 """
-import base64
 import datetime
 import gzip
 import hashlib

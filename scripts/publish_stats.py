@@ -11,7 +11,6 @@ confirmed come from the hand-kept data/impact.json because only a human knows.
 import datetime
 import json
 import pathlib
-import re
 import sqlite3
 import sys
 

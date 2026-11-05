@@ -42,7 +42,7 @@ $Heavy = "CarHunt Facebook Service", "CarHunt Daily Free Lane", "CarHunt Photo O
 # Matched on command line, deliberately narrow: the terminal Claude Code runs
 # in also mentions "Car Hunt" and must never be killed.
 $PyScripts = "openai_backlog|raw_sweep|daily_free_lane|kashf_verdicts|" +
-             "ingest_local_verdicts|fetch_watches|clarity_export|gvision_sweep|local_ocr_sweep|gemini_ocr_sweep|" +
+             "ingest_local_verdicts|fetch_watches|clarity_export|gemini_ocr_sweep|" +
              "backup_db"
 
 function Get-CarHuntProcs([switch]$HeavyOnly) {
