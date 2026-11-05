@@ -21,6 +21,7 @@ cloudflare.data_host. Token: site/cloudflare_token.txt (Cloudflare Pages: Edit)
 or CLOUDFLARE_API_TOKEN. Uses the official `wrangler` CLI.
 """
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -91,14 +92,23 @@ def stage(pairs: dict) -> list[str]:
     KEEP.mkdir(parents=True, exist_ok=True)
     for name, src in pairs.items():
         shutil.copyfile(src, KEEP / name)
-    # this build plus the previous one: a visitor on the old page keeps working
-    builds = sorted({p.name.split(".")[1] for p in KEEP.glob("core.*.bin")},
-                    key=lambda v: (KEEP / f"core.{v}.bin").stat().st_mtime)[-2:]
-    names = [f"{kind}.{v}.bin" for v in builds for kind in ("core", "detail")
-             if (KEEP / f"{kind}.{v}.bin").exists()]
+    # This build plus the previous one, so a visitor on the old page keeps
+    # working. Builds are recorded as PAIRS: core and detail have different
+    # hashes, and keying a build by core's hash alone left detail out of the
+    # first upload (2026-11-05; the byte check caught it, nothing published).
+    manifest = KEEP / "builds.json"
+    try:
+        builds = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        builds = []
+    current = sorted(pairs)
+    builds = [b for b in builds if b != current] + [current]
+    builds = [b for b in builds if all((KEEP / n).exists() for n in b)][-2:]
+    names = [n for b in builds for n in b]
     for stale in KEEP.glob("*.bin"):
         if stale.name not in names:
             stale.unlink()
+    manifest.write_text(json.dumps(builds), encoding="utf-8")
     findings = []
     for n in names:
         shutil.copyfile(KEEP / n, STAGE / n)
@@ -108,6 +118,10 @@ def stage(pairs: dict) -> list[str]:
         sys.exit("REFUSED by publish_guard:\n  " + "\n  ".join(findings))
     (STAGE / "_headers").write_text(HEADERS, encoding="ascii", newline="\n")
     (STAGE / "index.html").write_text(INDEX, encoding="utf-8")
+    # Without a 404.html, Pages treats the project as a single-page app and
+    # answers a MISSING file with index.html and status 200; the page would
+    # then fail to decode it instead of falling back to Netlify at once.
+    (STAGE / "404.html").write_text("not found\n", encoding="utf-8")
     return names
 
 
