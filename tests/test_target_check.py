@@ -64,7 +64,7 @@ def test_evidence_has_the_number_in_context_and_the_photo(env, car):
     assert len(photos) == 1
 
 
-def test_advice_is_recorded_and_nothing_else_changes(env):
+def test_advice_is_recorded_and_nothing_else_changes(env, car):
     tmp, pid, near, sent = env
     verify.enqueue_target([{"post_id": pid, "why": f"{near} is one character from target tail",
                             "source": "near_miss"}])
@@ -75,7 +75,7 @@ def test_advice_is_recorded_and_nothing_else_changes(env):
         return {"verdict": "different car", "confidence": 0.9, "reason": "typed list number",
                 "photos_show": ["a stock photo"], "photos_seen": len(photos), "model": "test"}
     con = db.connect()
-    stats = verify.run_target(con, ask=fake_ask)
+    stats = verify.run_target(con, car=car, ask=fake_ask)
     con.close()
     score, v = verdict_of(tmp, pid)
     assert stats == {"read": 1, "failed": 0}
@@ -87,7 +87,7 @@ def test_advice_is_recorded_and_nothing_else_changes(env):
     assert json.loads((tmp / "target_queue.json").read_text()) == []
 
 
-def test_a_check_that_keeps_failing_is_handed_to_a_human(env):
+def test_a_check_that_keeps_failing_is_handed_to_a_human(env, car):
     tmp, pid, near, sent = env
     verify.enqueue_target([{"post_id": pid, "why": "x", "source": "near_miss"}])
 
@@ -95,7 +95,7 @@ def test_a_check_that_keeps_failing_is_handed_to_a_human(env):
         raise RuntimeError("claude CLI not on PATH")
     con = db.connect()
     for _ in range(verify.MAX_ATTEMPTS):
-        verify.run_target(con, ask=broken)
+        verify.run_target(con, car=car, ask=broken)
     con.close()
     assert any("please look by hand" in m for m in sent)
     score, v = verdict_of(tmp, pid)
