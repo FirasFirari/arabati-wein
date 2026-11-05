@@ -185,7 +185,16 @@ def check_once(alerts: bool = True) -> list[str]:
     deadman.ping("carhunt-alive")
     unhealthy = check_services()
     if unhealthy and alerts:
-        alert("⚠️ CarHunt watchdog restarted: " + ", ".join(unhealthy))
+        # once per service per hour: a network outage restarts the Telegram
+        # services every cycle, and a message every 5 minutes is noise
+        # (2026-11-05: a 30-minute outage). A persistent failure is reported
+        # by the dead-man `services` check below.
+        state, now = _load_state(), time.time()
+        fresh = [s for s in unhealthy if now - state.get(f"_alerted_{s}", 0) > 3600]
+        if fresh:
+            alert("⚠️ CarHunt watchdog restarted: " + ", ".join(fresh))
+            state.update({f"_alerted_{s}": now for s in fresh})
+            _save_state(state)
     # a service still unhealthy after a restart is broken, not hiccuping
     persistent = sorted(set(unhealthy) & _unhealthy_last_cycle)
     if persistent:

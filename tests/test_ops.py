@@ -108,3 +108,13 @@ def test_tracked_records_the_jobs_own_exit_code(hdir, monkeypatch):
     assert pings == [("raw-sweep", "start"), ("raw-sweep", 0), ("raw-sweep", "start"),
                      ("raw-sweep", 3), ("raw-sweep", "start"), ("raw-sweep", 1)]
     assert json.loads((health.HEALTH_DIR / "job_raw_sweep.json").read_text())["last_exit"] == 1
+
+
+def test_restart_alerts_are_rate_limited_per_service(hdir, monkeypatch):
+    tmp, sent = hdir
+    monkeypatch.setattr(watchdog, "check_services", lambda: ["intake_bot"])
+    monkeypatch.setattr(watchdog, "catch_up", lambda: [])
+    monkeypatch.setattr(deadman, "ping", lambda *a, **k: None)
+    watchdog.check_once()
+    watchdog.check_once()              # 5 minutes later, still down
+    assert len([m for m in sent if "restarted" in m]) == 1
