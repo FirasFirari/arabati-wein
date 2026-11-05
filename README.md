@@ -57,8 +57,7 @@ python -m carhunt.telegram_monitor --backfill 300
 python -m carhunt.intake_bot
 python -m carhunt.search 1122334           # search the local registry
 python -m carhunt.export_site              # build the public site
-python scriptsuild_deploy.py; python scripts
-etlify_deploy.py   # draft, verify, publish
+python scripts\build_deploy.py; python scripts\netlify_deploy.py   # draft, verify, publish
 ```
 
 `config.yaml` is private and gitignored: it holds every credential and the
