@@ -35,8 +35,9 @@ communities.
   warning beside every contact number, and the official channels as the
   empty state.
 * **Watches**: a visitor who finds nothing leaves a number; every hour the
-  number is checked against all new posts and OCR, and a hit produces a
-  Telegram alert for the operator and a ready-to-send message for the family.
+  number is checked against all new posts and OCR; a hit is read and judged
+  before the operator gets one Telegram message, and a possible sighting comes
+  with a ready-to-send message for the family.
 * **Alerts only on identifiers, never on resemblance.** A model score cannot
   trigger an alert on its own.
 
@@ -49,26 +50,34 @@ change with money.
 ```powershell
 pip install -r requirements.txt
 copy config.example.yaml config.yaml       # fill in keys, Telegram, and the car profile
+python -m pytest                           # tests; the private ones need config.yaml + data/
 python scripts\check_identifier_rule.py    # the matching rule fires on the configured car only
 python scripts\check_watch_rule.py
 python -m carhunt.telegram_monitor --backfill 300
 python -m carhunt.intake_bot
 python -m carhunt.search 1122334           # search the local registry
 python -m carhunt.export_site              # build the public site
+python scriptsuild_deploy.py; python scripts
+etlify_deploy.py   # draft, verify, publish
 ```
 
 `config.yaml` is private and gitignored: it holds every credential and the
 profile of the car a deployment searches for. **No identifier from that profile
-may appear in code**; tests derive their cases from the config.
+may appear in code**: public tests use a fictional car
+(`tests/fixtures/config.test.yaml`), private tests read the real config, and a
+pre-commit hook (`scripts/install_hooks.py`) refuses keys, phone numbers and the
+car's identifiers.
 
 ## Repository layout
 
 ```
-carhunt/            the package: collectors, gates, parsers, providers, export, watches, notify
-scripts/            operational tools: OCR sweeps, raw sweep, deploy, checks
+carhunt/            the package: collectors, gate, parsers, providers, export, watches, notify, ops
+scripts/            operational tools: daily lane, OCR sweep, raw sweep, backup, deploy, checks
+tests/              pytest (public + private); fixtures use a fictional car
+site/src/           the page template (HTML, CSS, search JavaScript)
+site/static/        content pages, robots, llms.txt, headers
+site/functions/     the Netlify function (instant watch-registration alert)
 docs/               architecture, runbook, privacy, safeguarding
-prompts/            model prompts with {{VIN}} / {{PLATE}} templates
-site/static/        support, privacy, stats pages, robots, sitemap, llms.txt
 config.example.yaml every key, documented
 ```
 
