@@ -96,6 +96,17 @@ def main() -> None:
             except ValueError:
                 age = 999
             check("stats.json generated within 2 days", age <= 2, gen)
+    # the free static host the page loads the payloads from first
+    m = re.search(r"const DATA_HOST = '([^']*)'", html)
+    if m and m.group(1):
+        for name in ("core.bin", "detail.bin"):
+            v = re.search(rf"{name}\?v=([0-9a-f]{{12}})", html)
+            hosted = f"{m.group(1)}{name.split('.')[0]}.{v.group(1) if v else 'x'}.bin"
+            rr = requests.get(hosted, timeout=300, headers={"Origin": "https://mycarsd.online"})
+            same = rr.status_code == 200 and rr.content == (DEPLOY / name).read_bytes()
+            cors = rr.headers.get("Access-Control-Allow-Origin") in ("*", "https://mycarsd.online")
+            check(f"{name} on the data host == local, CORS ok", same and cors, hosted)
+
     for pretty in ("support", "privacy", "stats"):
         rr = get(pretty, allow_redirects=True)
         check(f"/{pretty} resolves", rr.status_code == 200 and "<html" in rr.text.lower(), str(rr.status_code))

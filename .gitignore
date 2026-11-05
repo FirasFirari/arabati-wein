@@ -41,6 +41,7 @@ scratch_*
 
 # ---- generated site output (rebuilt by export_site / build_deploy) ----
 site/deploy/
+site/cfdata/
 site/backups/
 site/*.bin
 site/arabati-wein.html

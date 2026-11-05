@@ -456,3 +456,11 @@ healthchecks:
 backup:
   age_recipient: ""
   offsite_dir: ""       # default: <home>/My Drive/CarHunt backups
+
+# Free static host for the two payloads (scripts/cloudflare_deploy.py, needs the
+# wrangler CLI and a "Cloudflare Pages: Edit" token in site/cloudflare_token.txt).
+# Empty data_host = the page loads its payloads from the same origin only.
+cloudflare:
+  account_id: ""
+  pages_project: ""
+  data_host: ""

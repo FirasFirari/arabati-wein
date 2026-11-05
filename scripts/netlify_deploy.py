@@ -239,6 +239,14 @@ def main() -> None:
         print("\n--dry-run: nothing sent")
         return
 
+    # The payloads go to the free static host FIRST: the page about to be
+    # published asks for them there by content hash, so they must exist before
+    # it does. Not configured (exit 2) = same-origin only, still correct.
+    import cloudflare_deploy
+    cf = cloudflare_deploy.main()
+    if cf == 1:
+        sys.exit("REFUSED: the payload upload to Cloudflare failed — nothing published")
+
     sid, H = site_id(), {"Authorization": f"Bearer {token()}"}
     # A DRAFT first: it gets its own URL and is checked there before anyone
     # sees it. Until 2026-11-04 deploys went straight to production and were

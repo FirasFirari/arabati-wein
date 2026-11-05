@@ -671,6 +671,15 @@ const esc = x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 // download, and the language button works.
 const CORE_URL = '__CORE_URL__';
 const DETAIL_URL = '__DETAIL_URL__';
+// The two payloads are ~99% of the bytes this site serves. They come from a
+// free static host (Cloudflare Pages: static requests are not metered) under
+// content-hashed names, with the same-origin copy as the fallback. Netlify's
+// plan bills bandwidth, and running out of credits pauses the whole site.
+const DATA_HOST = '__DATA_HOST__';
+const hostedUrl = url => {
+  const m = url.match(/^(\w+)\.bin\?v=([0-9a-f]{12})$/);
+  return DATA_HOST && m ? DATA_HOST + m[1] + '.' + m[2] + '.bin' : url;
+};
 let READY = false, GAVE_UP = false;
 const $q0 = document.getElementById('q');
 // ?q=<number> pre-fills the box: the schema.org SearchAction target, and what a
@@ -715,10 +724,13 @@ document.getElementById('lang-toggle').addEventListener('click', () => {
 // before each retry.
 async function fetchPayload(url, progress, onRetry) {
   const name = url.split('?')[0];
+  const sources = DATA_HOST ? [hostedUrl(url), url] : [url];
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
+    const src = sources[(attempt - 1) % sources.length];
     try {
-      const resp = await fetch(url, { cache: 'force-cache' });
+      if (src === url && sources.length > 1) track('payload_fallback', { payload: name });
+      const resp = await fetch(src, { cache: 'force-cache' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const total = Number(resp.headers.get('content-length')) || 0;
       let got = 0, lastPaint = 0;
@@ -1672,9 +1684,22 @@ def clarity_snippet() -> str:
     )
 
 
+def data_host() -> str:
+    """Base URL the page loads the payloads from first (config
+    `cloudflare.data_host`, e.g. https://mycarsd-data.pages.dev/), or ''."""
+    try:
+        host = str(((load_config() or {}).get("cloudflare") or {}).get("data_host") or "").strip()
+    except Exception:
+        host = ""
+    if host and not host.endswith("/"):
+        host += "/"
+    return host if re.fullmatch(r"https://[A-Za-z0-9.\-]+/", host) else ""
+
+
 def fill_template(*, stats_js: str, fbkind_js: str, core_url: str,
                   detail_url: str, updated: str) -> str:
     return (TEMPLATE
+            .replace("__DATA_HOST__", data_host())
             .replace("__CLARITY__", clarity_snippet())
             .replace("__ALIASES__", js_literal(ALIASES))
             .replace("__STATS__", stats_js)
