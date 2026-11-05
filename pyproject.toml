@@ -2,7 +2,7 @@
 name = "arabati-wein"
 version = "0.0.0"
 description = "Free public registry of vehicles looted or lost in the Sudan war (mycarsd.online)"
-requires-python = ">=3.12"
+requires-python = ">=3.14"   # compression.zstd (backups) is new in 3.14
 license = { text = "Apache-2.0" }
 
 [tool.pytest.ini_options]
