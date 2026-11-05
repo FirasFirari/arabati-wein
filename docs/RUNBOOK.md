@@ -91,8 +91,16 @@ python -m carhunt.notify --outbox            # pending WhatsApp drafts for regis
 A raw-sweep hit is a **lead, never a sighting**: open the post, judge it, then
 record the verdict in `data/watch_reviewed.json` so it is not raised again.
 Relay the lead with the pre-written message in `data/leads_outbox.md`; follow
-`docs/SAFEGUARDING.md` to the letter. A "verify by eye" Telegram from the
-Gemini lane is the same: a reason to open the photo, not a match.
+`docs/SAFEGUARDING.md` to the letter.
+
+Leads on the family's OWN car (a target hit or near-miss from any lane) are
+queued in `data/verify_target_queue.json` and read hourly by headless Claude
+WITH the post's photos (`python -m carhunt.verify --target`; it can read only a
+sealed copy of those photos). Its reading lands on the lead as
+`auto_eye_check` and in one Telegram message, marked **advice only**: it never
+changes the score or closes the lead; you decide. Queue one by hand with
+`python -m carhunt.verify --queue-post <id>`; add `--dry-run` to read without
+writing or sending.
 
 ## Publishing the site
 

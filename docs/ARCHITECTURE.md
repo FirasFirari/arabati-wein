@@ -120,7 +120,10 @@ announces it to the operator on Telegram at once (PC on or off). Hourly,
 watch** against raw post text plus OCR, and the car against new registry rows.
 Watch hits are queued and read by headless Claude (`carhunt/verify.py`) before
 the operator gets one Telegram message; a possible sighting gets a ready-to-send
-message for the family. Messages never quote the post, never suggest contacting
+message for the family. Leads on the deployment's OWN car get the same reading
+plus a look at the post's photos (a sealed copy, Read as the only tool), but
+the verdict is advice only: written onto the lead and sent to the operator,
+never applied. Messages never quote the post, never suggest contacting
 the poster, and always route to the official free channels
 (`docs/SAFEGUARDING.md`).
 

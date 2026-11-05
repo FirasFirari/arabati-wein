@@ -416,6 +416,253 @@ def run(conn, watches=None, dry_run: bool = False) -> dict:
     return stats
 
 
+# ======================================================================
+# LEADS ON THE FAMILY'S OWN CAR (added 2026-11-05) -- ADVICE ONLY
+# ======================================================================
+# Watch hits above are strangers' registrations, and a confident "different
+# car" there is applied. A lead on the CAR THIS DEPLOYMENT SEARCHES FOR is
+# different: wrongly dismissing a real sighting is the worst failure this
+# system can have. So the same careful reading runs here -- this time it also
+# LOOKS AT THE POST'S PHOTOS -- but its verdict is written onto the lead
+# (`auto_eye_check` in the post's verdict) and sent to the operator, and
+# nothing else changes: not the score, not the hit, not the lead's visibility.
+# A human makes the call.
+#
+# Post 5169 is why: a "one digit off" lead flagged in August sat at score 75
+# for ten weeks because nothing ever re-read it; the photo turned out to be a
+# stock image and the number was typed in an unlabelled list.
+
+TARGET_QUEUE = DATA_DIR / "verify_target_queue.json"
+TARGET_VERDICTS = ("possible sighting", "own post", "different car", "unclear")
+MAX_PHOTOS = 4
+PHOTO_TYPES = {b"\xff\xd8\xff": ".jpg", b"\x89PNG": ".png", b"RIFF": ".webp", b"GIF8": ".gif"}
+
+
+def _load(path) -> list[dict]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def enqueue_target(leads) -> int:
+    """`leads` = iterable of dicts {post_id, why, source, token}. Returns how
+    many were new. A post already read (by a human or by this check) is skipped."""
+    items = _load(TARGET_QUEUE)
+    have = {int(i["post_id"]) for i in items}
+    added = 0
+    for lead in leads:
+        pid = int(lead["post_id"])
+        if pid in have:
+            continue
+        items.append({"post_id": pid, "why": str(lead.get("why") or ""),
+                      "source": str(lead.get("source") or ""), "token": str(lead.get("token") or ""),
+                      "queued_at": datetime.datetime.now().isoformat(timespec="seconds"),
+                      "attempts": 0})
+        have.add(pid)
+        added += 1
+    TARGET_QUEUE.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
+    return added
+
+
+def _target_token(item: dict) -> str:
+    if item.get("token"):
+        return item["token"]
+    m = re.search(r"([0-9A-Za-z]{5,}) is one character from", item.get("why") or "")
+    if m:
+        return m.group(1)
+    m = re.search(r"(?:chassis|plate)\s+([0-9A-Za-z]{4,})", item.get("why") or "")
+    return m.group(1) if m else ""
+
+
+def _photos(conn, post_id: int) -> list[str]:
+    out = []
+    for (path,) in conn.execute("SELECT path FROM media WHERE post_id = ? ORDER BY id", (post_id,)):
+        try:
+            head = open(path, "rb").read(4)
+        except OSError:
+            continue
+        if any(head.startswith(sig) for sig in PHOTO_TYPES):
+            out.append(path)
+        if len(out) >= MAX_PHOTOS:
+            break
+    return out
+
+
+def target_evidence(conn, item: dict, car: dict) -> dict:
+    """What a careful reader needs about one lead on the family's car."""
+    post = _post(conn, item["post_id"])
+    token = _target_token(item)
+    excerpts = []
+    for field, where in (("text", "post text"), ("ocr", "photo OCR")):
+        blob = post.get(field) or ""
+        for p in _positions(blob, token)[:3]:
+            excerpts.append({"in": where, "heading_above": _heading(blob, p),
+                             "excerpt": _norm(blob[max(0, p - 350):p + len(token) + 350])})
+    if not excerpts:
+        excerpts.append({"in": "post text (number not found verbatim)", "heading_above": "",
+                         "excerpt": _norm(post.get("text", "")[:900])})
+    rows = conn.execute(
+        "SELECT make, model, color, year, chassis, plate FROM vehicles WHERE post_id = ? LIMIT 400",
+        (item["post_id"],)).fetchall()
+    tok = token.upper()
+    near_rows = [dict(zip(("make", "model", "color", "year", "chassis", "plate"), r)) for r in rows
+                 if tok and any(tok in str(x or "").upper() for x in (r[4], r[5]))][:5]
+    return {
+        "target_car": {k: car.get(k) for k in ("make", "model", "year", "color", "vin", "plate",
+                                                "registered_at")},
+        "lead": {"why_flagged": item.get("why"), "how_found": item.get("source"),
+                 "matched_number": token},
+        "post": {"id": post.get("id"), "source": post.get("source"), "url": post.get("url"),
+                 "seen_at": (post.get("seen_at") or "")[:10],
+                 "first_300_chars": _norm(post.get("text", "")[:300]), "excerpts": excerpts,
+                 "registry_rows_with_this_number": near_rows,
+                 "vehicle_rows_in_post": len(rows)},
+        "photos": [],     # filled with local file names by ask_claude_target
+    }
+
+
+TARGET_PROMPT = """You are helping a family whose car was taken in the Sudan war. An automated rule flagged ONE post as a possible lead on THEIR car (profile and identifiers in `target_car`). Read the evidence, LOOK AT EVERY PHOTO listed in `photos` (they are files in your working directory: open each with the Read tool), and give the family your honest reading.
+
+Only an IDENTIFIER counts: the chassis/VIN or the plate. A white 2013-2016 Corolla looks like every other one, and swapping chassis plates is how stolen cars are laundered, so resemblance alone is never a sighting.
+
+Choose exactly one:
+- "possible sighting": the target's full chassis tail or VIN, or its plate (serial + the same or an unreadable region), is actually present in the post or a photo, in a found / impound / recovery / for-sale context, and nothing contradicts the target (make, model, colour, plate region).
+- "own post": the number appears because the family themselves posted it (a lost report, a search comment).
+- "different car": a concrete contradiction: the number differs from the target's at the full length it is written; it belongs to another make or model; it is a plate while the target number is a chassis (or the reverse); the photo shows a different vehicle or a document for another car.
+- "unclear": the evidence cannot settle it (number only partly legible, photo unreadable, no context).
+
+Rules: a number one character away from the target's is NOT the target unless a photo shows a misprint or misread of the target's own plate or stamp; typed text is not a misread. Describe what the photos show in one short clause each. Be conservative: "unclear" is acceptable. Never speculate about people and never mention contact details. Your answer is ADVICE: it never closes the lead; the family decides.
+
+Answer with JSON: {"verdict": one of the four strings, "confidence": 0.0-1.0, "reason": at most 400 characters in English, quoting the decisive words or numbers, "photos_show": one short clause per photo}.
+
+EVIDENCE (JSON):
+"""
+
+TARGET_SCHEMA = json.dumps({
+    "type": "object",
+    "properties": {"verdict": {"type": "string", "enum": list(TARGET_VERDICTS)},
+                   "confidence": {"type": "number"},
+                   "reason": {"type": "string"},
+                   "photos_show": {"type": "array", "items": {"type": "string"}}},
+    "required": ["verdict", "confidence", "reason"]})
+
+
+def ask_claude_target(ev: dict, photo_paths: list[str], cfg: dict) -> dict:
+    """Headless `claude -p` that may READ the post's photos and nothing else.
+
+    The photos are copied into a fresh folder that becomes the working
+    directory, and Read is the only tool: files outside the working directory
+    need a permission nobody can grant in -p mode, so the reader cannot open
+    config.yaml, the database or anything else. Subscription login, not an API key.
+    """
+    import tempfile
+    exe = shutil.which("claude") or os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd")
+    if not os.path.exists(exe):
+        raise RuntimeError("claude CLI not on PATH")
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+                        "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")}
+    work = tempfile.mkdtemp(prefix="carhunt_eye_")
+    try:
+        names = []
+        for i, src in enumerate(photo_paths, 1):
+            head = open(src, "rb").read(4)
+            ext = next((e for sig, e in PHOTO_TYPES.items() if head.startswith(sig)), ".jpg")
+            name = f"photo{i}{ext}"
+            shutil.copyfile(src, os.path.join(work, name))
+            names.append(name)
+        ev = dict(ev, photos=names)
+        prompt = TARGET_PROMPT + json.dumps(ev, ensure_ascii=False, indent=1)
+        r = subprocess.run([exe, "-p", "--output-format", "json", "--model", cfg["model"],
+                            "--tools", "Read" if names else "", "--json-schema", TARGET_SCHEMA,
+                            "--no-session-persistence"],
+                           input=prompt, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", env=env, cwd=work, timeout=cfg["timeout_s"],
+                           creationflags=NO_WINDOW)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"claude rc={r.returncode}: {r.stderr.strip()[-300:]}")
+    out = json.loads(r.stdout)
+    so = out.get("structured_output")
+    if not so:
+        m = re.search(r"\{.*\}", out.get("result") or "", re.S)
+        so = json.loads(m.group(0)) if m else None
+    if not so or so.get("verdict") not in TARGET_VERDICTS:
+        raise RuntimeError(f"no usable verdict in: {(out.get('result') or '')[:200]}")
+    so["confidence"] = float(so.get("confidence") or 0)
+    so["reason"] = (so.get("reason") or "")[:500]
+    so["photos_show"] = [str(x)[:160] for x in (so.get("photos_show") or [])][:MAX_PHOTOS]
+    so["photos_seen"] = len(names)
+    so["model"] = cfg["model"]
+    return so
+
+
+def _write_eye_check(post_id: int, check: dict) -> None:
+    """Record the advice on the post. Score, hit and visibility are untouched."""
+    from . import db
+    with db.write_tx() as w:
+        row = w.execute("SELECT verdict FROM posts WHERE id = ?", (post_id,)).fetchone()
+        v = json.loads(row[0]) if row and row[0] else {}
+        v["auto_eye_check"] = check
+        w.execute("UPDATE posts SET verdict = ? WHERE id = ?",
+                  (json.dumps(v, ensure_ascii=False), post_id))
+
+
+TARGET_MARK = {"possible sighting": "🚨 POSSIBLE SIGHTING — look now",
+               "own post": "✗ your own post", "different car": "✗ looks like a different car",
+               "unclear": "❓ unclear — needs your eye"}
+
+
+def run_target(conn, car: dict | None = None, dry_run: bool = False, ask=None) -> dict:
+    """Read every queued lead on the family's car. Returns counts."""
+    cfg, ask = _cfg(), ask or ask_claude_target
+    car = car or (load_config().get("car") or {})
+    items = _load(TARGET_QUEUE)
+    stats = {"read": 0, "failed": 0}
+    if not items:
+        return stats
+    lines, remaining = [], []
+    for item in items:
+        try:
+            photos = _photos(conn, item["post_id"])
+            ev = target_evidence(conn, item, car)
+            check = ask(ev, photos, cfg)
+        except Exception as e:
+            item["attempts"] = int(item.get("attempts") or 0) + 1
+            log(f"TARGET check FAILED post {item['post_id']}: {e}")
+            if item["attempts"] >= MAX_ATTEMPTS:
+                lines.append(f"⚠ automatic check failed {MAX_ATTEMPTS}x · post {item['post_id']} "
+                             f"· {item.get('why')} · please look by hand")
+                stats["failed"] += 1
+            else:
+                remaining.append(item)
+            continue
+        check["at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        check["advice_only"] = True
+        stats["read"] += 1
+        url = ev["post"].get("url") or "no saved link"
+        photos_line = ("\n   photos: " + " | ".join(check["photos_show"])) if check.get("photos_show") else ""
+        lines.append(f"{TARGET_MARK[check['verdict']]} · post {item['post_id']} · conf "
+                     f"{check['confidence']:.2f}\n   flagged: {item.get('why')}\n   "
+                     f"{check['reason']}{photos_line}\n   {url}")
+        log(f"TARGET advice post {item['post_id']}: {check['verdict']} ({check['confidence']:.2f})")
+        if not dry_run:
+            _write_eye_check(item["post_id"], check)
+    if not dry_run:
+        TARGET_QUEUE.write_text(json.dumps(remaining, ensure_ascii=False, indent=1), encoding="utf-8")
+    if lines:
+        text = ("CarHunt · YOUR CAR · automatic reading of " + str(len(lines)) + " lead(s)\n"
+                "Advice only: every lead stays open until you decide.\n\n" + "\n\n".join(lines))
+        if dry_run:
+            print(text)
+        else:
+            ok = notify.send_telegram(text)
+            log(f"target summary telegram {'sent' if ok else 'NOT sent'}: {stats}")
+    return stats
+
+
 # -------------------------------------------------------------------- CLI --
 def _main(argv) -> int:
     try:
@@ -429,8 +676,23 @@ def _main(argv) -> int:
     ap.add_argument("--replay", nargs=2, metavar=("IDENT", "POST_ID"),
                     help="verify this one pair now (ignores the queue and the reviewed file)")
     ap.add_argument("--show-evidence", action="store_true")
+    ap.add_argument("--target", action="store_true",
+                    help="read the queued leads on the family's own car (advice only)")
+    ap.add_argument("--queue-post", type=int, metavar="POST_ID",
+                    help="queue one post as a lead on the family's car, then --target reads it")
     a = ap.parse_args(argv)
     conn = db.connect()
+    if a.queue_post:
+        row = conn.execute("SELECT json_extract(verdict, '$.identifier_hit'), "
+                           "json_extract(verdict, '$.identifier_source') FROM posts WHERE id = ?",
+                           (a.queue_post,)).fetchone()
+        print("queued:", enqueue_target([{"post_id": a.queue_post, "why": (row or [None])[0] or "manual",
+                                          "source": (row or [None, None])[1] or "manual"}]))
+    if a.target:
+        print(run_target(conn, dry_run=a.dry_run))
+        return 0
+    if a.queue_post:
+        return 0
     if a.replay:
         ident, pid = a.replay[0], int(a.replay[1])
         all_w = watchlib.load_watches()

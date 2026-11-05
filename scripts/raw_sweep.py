@@ -234,11 +234,14 @@ def main() -> None:
     # --- what is new since the last run ---
     new_lines, new_target, new_watch = [], 0, 0
     new_watch_hits = []   # (ident, hit) pairs to notify
+    new_target_leads = []  # read by Claude (advice only) before the summary
     for h in t_hits:
         if ("TARGET", h["post_id"]) not in seen:
             seen.add(("TARGET", h["post_id"]))
             new_target += 1
             new_lines.append(f"TARGET  post {h['post_id']}  {h['why']}")
+            new_target_leads.append({"post_id": h["post_id"], "why": h["why"],
+                                     "source": "registry" if "registry row" in h["why"] else "text/OCR"})
     reviewed = watchlib.load_reviewed()
     for ident, hs in merged.items():
         for h in hs:
@@ -277,6 +280,8 @@ def main() -> None:
     verified = {}
     try:
         from carhunt import notify, verify
+        if new_target_leads:
+            verify.enqueue_target(new_target_leads)
         queued = verify.enqueue(new_watch_hits)
         if queued:
             log(f"  queued {queued} new watch hit(s) for verification")
@@ -286,6 +291,12 @@ def main() -> None:
                 log(f"  verification: {verified}")
         if new_target:
             notify.notify_target_hits(new_target)
+        if not args.no_verify:
+            # leads on the family's own car, from this sweep or from the
+            # scoring lanes: read with the photos, ADVICE ONLY (verify.py)
+            t = verify.run_target(conn)
+            if t.get("read") or t.get("failed"):
+                log(f"  target leads read: {t}")
     except Exception as e:
         log(f"verify/notify failed: {e}")
     link_health(conn)

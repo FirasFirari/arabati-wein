@@ -919,17 +919,16 @@ def main() -> None:
                       f"images={len(post.get('media') or [])}\n"
                       f"    {post.get('url')}\n", flush=True)
                 # Until 2026-11-04 this went to stdout of a scheduled job and
-                # nowhere else. Never an "alert" for the family: a lead for the
-                # operator to open the photo and judge by eye.
+                # nowhere else. Now it is QUEUED: the hourly sweep has Claude
+                # read the post and its photos and sends the operator that
+                # reading -- advice only, the lead stays open (carhunt/verify.py).
                 if not args.dry_run:
                     try:
-                        from carhunt import notify
-                        notify.send_telegram(
-                            f"🔎 Car Hunt: {label}\npost {post['id']} — {hit}\n"
-                            f"{post.get('url') or '(no link saved)'}\n"
-                            f"Open the photo and judge it by eye before telling anyone.")
+                        from carhunt import verify
+                        verify.enqueue_target([{"post_id": post["id"], "why": hit,
+                                                "source": source}])
                     except Exception as e:
-                        print(f"  (telegram failed: {e})", flush=True)
+                        print(f"  (could not queue the lead: {e})", flush=True)
             elif score >= threshold:
                 alerts += 1
                 print(f"\n  ALERT post {post['id']} score={score}\n"
