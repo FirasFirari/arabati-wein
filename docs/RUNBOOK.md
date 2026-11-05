@@ -128,7 +128,11 @@ set and `age` is installed — nothing unencrypted ever leaves the machine.
 
 Restore: `python -c "from compression import zstd; open('carhunt.db','wb').write(zstd.decompress(open('data/backups/<date>/carhunt.db.zst','rb').read()))"`
 into a scratch folder, `PRAGMA integrity_check`, then swap it in with
-everything paused.
+everything paused. From an offsite copy, first decrypt it with the private key
+kept off this machine: `age -d -i <private key file> -o backup.tar
+carhunt-<date>.tar.age`, then unpack the tar (it holds the dated folder above).
+Verified 2026-11-05: an offsite copy decrypted, matched its MANIFEST sha256 and
+held an intact database.
 
 ## Repairs
 
