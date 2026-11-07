@@ -20,7 +20,8 @@ site/deploy once went public for a minute. Anything else aborts the deploy.
     python scripts\\netlify_deploy.py --rollback [ID] # re-publish the previous deploy
 
 Since 2026-11-04 every deploy is a DRAFT first: verify_deploy.py checks it at
-its own URL, and only then is it published. A build with more than 5% fewer
+its own URL, and only then is it published. Since 2026-11-07 the draft must
+also pass check_mobile_layout.py (no page wider than a phone, in any state). A build with more than 5% fewer
 vehicles than the live one is refused, and each deploy records its git commit
 and the deploy it replaced in data/deploy_history.jsonl, which --rollback uses.
 
@@ -186,11 +187,18 @@ def record(entry: dict) -> None:
                  + "\n")
 
 
-def verify(base: str) -> bool:
+def verify(base: str, layout: bool = False) -> bool:
+    """verify_deploy.py, plus (for the draft) the phone layout check: a page
+    that turns 10,000px wide on a phone passes every HTTP check there is."""
     import subprocess
     r = subprocess.run([sys.executable, str(PROJECT_ROOT / "scripts" / "verify_deploy.py"),
                         "--base", base], cwd=PROJECT_ROOT)
-    return r.returncode == 0
+    ok = r.returncode == 0
+    if layout:
+        r = subprocess.run([sys.executable, str(PROJECT_ROOT / "scripts" / "check_mobile_layout.py"),
+                            "--base", base], cwd=PROJECT_ROOT)
+        ok = ok and r.returncode == 0
+    return ok
 
 
 def rollback(target: str | None) -> None:
@@ -286,7 +294,7 @@ def main() -> None:
         sys.exit(f"draft failed: {st.get('error_message')} — nothing published")
     draft_url = st.get("deploy_ssl_url") or st.get("deploy_url")
     print(f"draft ready: {draft_url}\nchecking the draft before publishing...")
-    if not verify(draft_url):
+    if not verify(draft_url, layout=True):
         sys.exit(f"REFUSED: the draft failed verification — nothing published. Inspect {draft_url}")
 
     try:

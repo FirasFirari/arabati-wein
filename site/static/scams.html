@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>احذر نصب «استرجاع العربات المفقودة» في السودان — الأساليب المتكررة وكيف تحمي نفسك | عربتي وين؟</title>
 <meta name="description" content="الأساليب التي يستخدمها النصابون مع أصحاب العربات المنهوبة في السودان: طلب رقم الشاسي في الخاص، رمز التحقق المكوّن من ٦ أرقام، صور الأحواش الحكومية بأرقام واتساب شخصية، والدفع مقابل «الإفراج». الاسترداد الرسمي مجاني ولا يوجد واتساب رسمي.">
 <meta name="robots" content="index,follow,max-image-preview:large">
@@ -62,6 +63,12 @@
 :root { --bg:#F8F4EC; --surface:#fff; --ink:#23313B; --muted:#6E7B84; --accent:#146C7C; --accent-ink:#fff; --line:#E3DCCC; --danger:#A33B2E; --danger-bg:#F7E5E0; --mid-bg:#FBEEDA; --mid:#8A5A18; }
 @media (prefers-color-scheme: dark) { :root { --bg:#131A20; --surface:#1C2630; --ink:#E8E4DA; --muted:#93A0A8; --accent:#4FB3C5; --accent-ink:#0E1418; --line:#2C3945; --danger:#E38A76; --danger-bg:#3A231D; --mid-bg:#3A2E17; --mid:#E3B36A; color-scheme: dark; } }
 * { box-sizing: border-box; }
+/* phone hardening */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-wrap: break-word; }
+a, code { overflow-wrap: anywhere; }
+img, svg { max-width: 100%; height: auto; }
+nav a { display: inline-block; padding-block: 6px; }
 body { margin:0; background:var(--bg); color:var(--ink); font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif; line-height:1.75; font-size:17px; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 60px; }
 h1 { font-family: Amiri, "IBM Plex Sans Arabic", serif; font-size: 2rem; line-height: 1.25; color: var(--danger); margin: 0 0 8px; text-wrap: balance; }
