@@ -1509,11 +1509,27 @@ if ($watchForm) {
       // Netlify Forms accepts a urlencoded POST to any path on the site; the
       // form-name field is what routes it to the right form.
       const body = new URLSearchParams(new FormData($watchForm)).toString();
-      const resp = await fetch('/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
+      // Three tries. Clarity, 2026-11-08: a visitor in Sudan on a connection
+      // that had already dropped the data download twice submitted once, got
+      // the error 18 s later and left; nothing reached Netlify. A repeat that
+      // lands twice is harmless (same number, same contact); a lost
+      // registration is a person we can never tell.
+      let resp;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          resp = await fetch('/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+          });
+          if (resp.status < 500) break;
+          throw new Error('HTTP ' + resp.status);
+        } catch (err) {
+          if (attempt >= 3) throw err;
+          track('watch_retry');
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+        }
+      }
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       $watchMsg.className = 'watch-msg ok';
       $watchMsg.innerHTML = 'تم التسجيل. سنتواصل معك إذا ظهر الرقم.' +
