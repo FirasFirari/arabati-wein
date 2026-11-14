@@ -1,0 +1,21 @@
+adm0_pcode,adm1_pcode,adm1_name_en,adm1_name_ar,vehicles,vehicles_note
+#country+code,#adm1+code,#adm1+name+en,#adm1+name+ar,#indicator+vehicles+num,#meta+suppressed
+SD,SD01,Khartoum,الخرطوم,8134,
+SD,SD02,North Darfur,شمال دارفور,0,
+SD,SD03,South Darfur,جنوب دارفور,0,
+SD,SD04,West Darfur,غرب دارفور,0,
+SD,SD05,East Darfur,شرق دارفور,,1-4
+SD,SD06,Central Darfur,وسط دارفور,0,
+SD,SD07,South Kordofan,جنوب كردفان,,1-4
+SD,SD08,Blue Nile,النيل الأزرق,,1-4
+SD,SD09,White Nile,النيل الأبيض,9,
+SD,SD10,Red Sea,البحر الأحمر,10,
+SD,SD11,Kassala,كسلا,7,
+SD,SD12,Gedaref,القضارف,81,
+SD,SD13,North Kordofan,شمال كردفان,565,
+SD,SD14,Sennar,سنار,41,
+SD,SD15,Aj Jazirah,الجزيرة,509,
+SD,SD16,River Nile,نهر النيل,16,
+SD,SD17,Northern,الشمالية,7,
+SD,SD18,West Kordofan,غرب كردفان,,1-4
+SD,SD19,Abyei PCA,إدارية أبيي,0,

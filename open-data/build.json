@@ -1,0 +1,13 @@
+{
+ "generated_at": "2026-11-14T10:50:00Z",
+ "suppress_below": 5,
+ "boundaries": "OCHA COD-AB Sudan v03, https://data.humdata.org/dataset/cod-ab-sdn",
+ "files": {
+  "registry_summary.csv": 8,
+  "vehicles_by_admin1.csv": 19,
+  "location_mapping_quality.csv": 8,
+  "vehicles_by_status.csv": 8,
+  "vehicles_by_make.csv": 51,
+  "posts_by_month_platform.csv": 9
+ }
+}
