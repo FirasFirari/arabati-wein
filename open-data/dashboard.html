@@ -1,0 +1,162 @@
+<title>Sudan Looted Vehicles Data</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* layout: one reading column; the map and its trust table sit side by side, everything else stacks */
+:root{
+  --bg:#f7f8fa; --panel:#ffffff; --ink:#10151c; --ink2:#4b5563; --muted:#7b8494;
+  --line:#dfe3ea; --mark:#2a78d6; --track:#eceff4; --warn-bg:#fff6dc; --warn-ink:#5c4400;
+  --c1:#86b6ef; --c2:#5598e7; --c3:#256abf; --c4:#0d366b; --zero:#ffffff; --edge:#9aa3b2;
+  --display:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --body:"Inter","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1116; --panel:#171b22; --ink:#eef1f5; --ink2:#bcc3cf; --muted:#8892a0;
+  --line:#2a303a; --mark:#3987e5; --track:#232933; --warn-bg:#33290c; --warn-ink:#f3dc9a;
+  --c1:#184f95; --c2:#256abf; --c3:#5598e7; --c4:#cde2fb; --zero:#171b22; --edge:#5a6473;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1116; --panel:#171b22; --ink:#eef1f5; --ink2:#bcc3cf; --muted:#8892a0;
+  --line:#2a303a; --mark:#3987e5; --track:#232933; --warn-bg:#33290c; --warn-ink:#f3dc9a;
+  --c1:#184f95; --c2:#256abf; --c3:#5598e7; --c4:#cde2fb; --zero:#171b22; --edge:#5a6473;
+  color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-block:28px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:28px}
+h1{font-family:var(--display);font-size:clamp(26px,4vw,36px);line-height:1.15;margin:0;text-wrap:balance;font-weight:600}
+h2{font-family:var(--display);font-size:19px;margin:0;font-weight:600;text-wrap:balance}
+p{margin:0;max-width:68ch}
+.sub{color:var(--ink2)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+header{display:flex;flex-direction:column;gap:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.kpi{background:var(--panel);padding:16px 18px;display:flex;flex-direction:column;gap:2px}
+.kpi b{font-family:var(--display);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--ink2);font-size:13px}
+.warn{background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:14px 18px}
+.warn p{max-width:none}
+section{display:flex;flex-direction:column;gap:14px}
+.two{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start}
+.two>div{min-width:0;display:flex;flex-direction:column;gap:14px}
+@media (max-width:760px){.two{grid-template-columns:minmax(0,1fr)}}
+svg{width:100%;height:auto;display:block}
+.st{stroke:var(--bg);stroke-width:1.5;outline:none;cursor:default}
+.st:hover,.st:focus-visible{stroke:var(--ink);stroke-width:2}
+.st.c1,.sw.c1{fill:var(--c1);background:var(--c1)} .st.c2,.sw.c2{fill:var(--c2);background:var(--c2)}
+.st.c3,.sw.c3{fill:var(--c3);background:var(--c3)} .st.c4,.sw.c4{fill:var(--c4);background:var(--c4)}
+.st.zero{fill:var(--zero);stroke:var(--edge);stroke-width:1} .st.held{fill:url(#hatch);stroke:var(--edge);stroke-width:1}
+.hatchbg{fill:var(--zero)} .hatchln{stroke:var(--c2);stroke-width:2.5}
+.maplabel{font:600 12px var(--body);fill:var(--ink);text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3.5px;pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid var(--edge)}
+.sw.zero{background:var(--zero)}
+.sw.held{background:repeating-linear-gradient(45deg,var(--c2) 0 2px,var(--zero) 2px 5px)}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:minmax(0,11.5em) minmax(0,1fr) 5em;gap:10px;align-items:center;outline:none;border-radius:4px}
+.bar:focus-visible,.col:focus-visible{box-shadow:0 0 0 2px var(--mark)}
+.bl{font-size:13.5px;color:var(--ink2);overflow-wrap:anywhere}
+.bt{background:var(--track);height:12px;border-radius:0 4px 4px 0;overflow:hidden}
+.bt i{display:block;height:100%;background:var(--mark);border-radius:0 4px 4px 0}
+.bv{font-variant-numeric:tabular-nums;text-align:right;font-size:13.5px}
+.wide .bar{grid-template-columns:minmax(0,22em) minmax(0,1fr) 5em}
+@media (max-width:560px){.wide .bar,.bar{grid-template-columns:minmax(0,1fr) 5em}.bt{grid-column:1/-1;order:3}}
+.cols{display:flex;gap:14px;align-items:flex-end;height:180px;border-bottom:1px solid var(--line);padding-bottom:26px;position:relative}
+.col{flex:1;max-width:96px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;position:relative;outline:none;border-radius:4px}
+.col i{display:block;width:100%;background:var(--mark);border-radius:4px 4px 0 0;min-height:2px}
+.cv{font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.cl{position:absolute;bottom:-22px;font-size:12.5px;color:var(--muted)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--ink2);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.note{color:var(--ink2);font-size:13.5px}
+a{color:var(--mark)}
+footer{color:var(--ink2);font-size:13px;border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:6px}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--ink);color:var(--bg);padding:7px 10px;border-radius:6px;font-size:13px;max-width:280px;line-height:1.4}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Arabati Wein · open data · build of 2026-11-14</span>
+  <h1>Vehicles reported looted or lost in the Sudan war</h1>
+  <p class="sub">Counts from the public registry at mycarsd.online, built from recovery lists that committees, volunteers and families post on Facebook and Telegram. No chassis, plate or contact is on this page.</p>
+</header>
+
+<div class="kpis">
+  <div class="kpi"><b>106,213</b><span>distinct vehicles identified by chassis or plate</span></div>
+  <div class="kpi"><b>199,117</b><span>public posts collected, 2026-08-22 to 2026-11-10</span></div>
+  <div class="kpi"><b>258,910</b><span>photos collected with those posts</span></div>
+  <div class="kpi"><b>9,193</b><span>vehicles whose reported location maps to one state (9%)</span></div>
+</div>
+
+<div class="warn"><p><strong>Read the map as a picture of the sources.</strong> 88% of vehicles have no location in any post. The map shows only the 9% that name a state, it shows where a vehicle was reported and not where it was taken, and a blank state is one these groups did not post about.</p></div>
+
+<section>
+  <div class="two">
+    <div>
+      <h2>Where vehicles are reported, by state</h2>
+      <svg viewBox="-4 -4 568 512" role="img" aria-label="Map of Sudan: vehicles reported per state"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hatchbg"></rect><line x1="0" y1="0" x2="0" y2="6" class="hatchln"></line></pattern></defs><path class="st zero" d="M238.6,469.4 L240.0,467.9 L240.0,450.6 L201.1,450.6 L201.0,465.5 L207.9,479.2 L232.3,479.0 L233.5,474.2 L238.6,469.4 Z" data-tip="Abyei PCA · إدارية أبيي (SD19): none reported in these sources" tabindex="0"></path><path class="st c3" d="M392.6,266.9 L383.9,269.2 L379.2,275.3 L376.1,272.7 L371.5,273.5 L364.3,268.4 L362.8,269.7 L363.8,272.5 L362.4,273.1 L362.7,276.3 L358.2,275.9 L358.6,289.8 L355.8,295.0 L353.1,294.1 L351.9,296.9 L356.6,307.7 L355.1,310.6 L358.1,318.5 L362.5,320.6 L364.1,326.4 L362.9,328.3 L367.3,332.9 L370.4,327.2 L371.6,328.0 L374.2,325.1 L377.3,324.9 L375.8,323.0 L375.6,316.1 L381.6,314.9 L387.4,321.3 L387.2,323.6 L390.3,323.5 L389.1,330.2 L393.1,332.0 L394.4,327.9 L392.2,326.7 L394.5,325.8 L392.2,323.2 L394.6,322.0 L394.6,316.0 L397.7,314.0 L406.6,317.3 L404.7,312.8 L408.3,308.4 L406.6,305.7 L408.0,305.8 L415.7,294.3 L416.5,292.1 L408.4,277.8 L395.4,272.3 L394.8,268.9 L392.6,266.9 Z" data-tip="Aj Jazirah · الجزيرة (SD15): 509 vehicles" tabindex="0"></path><path class="st held" d="M423.1,367.9 L416.7,371.3 L414.4,371.0 L407.9,379.0 L379.4,395.9 L378.3,399.8 L382.5,427.6 L380.9,430.9 L389.7,433.5 L400.1,444.6 L403.7,450.8 L406.0,451.2 L406.7,459.5 L403.6,467.5 L403.6,473.8 L410.7,473.8 L415.1,454.5 L418.6,450.5 L416.5,437.9 L422.6,428.3 L427.1,425.0 L433.5,430.4 L433.2,432.0 L439.7,425.4 L438.8,423.6 L440.7,415.2 L438.2,413.3 L442.1,406.8 L443.4,399.3 L437.7,388.6 L433.2,372.3 L428.9,369.1 L423.1,367.9 Z" data-tip="Blue Nile · النيل الأزرق (SD08): 1 to 4 (number withheld)" tabindex="0"></path><path class="st zero" d="M59.9,334.8 L54.2,333.1 L47.1,337.3 L45.8,342.0 L40.7,343.4 L38.0,348.7 L38.7,350.1 L35.5,351.9 L36.1,354.4 L32.7,356.0 L26.8,362.9 L30.7,376.9 L26.0,384.8 L27.5,384.8 L24.9,399.7 L32.5,407.6 L37.7,406.9 L39.2,414.1 L36.6,420.8 L42.4,419.4 L45.7,415.4 L50.8,416.0 L52.7,413.1 L60.7,410.8 L64.4,407.0 L63.5,397.0 L65.0,390.5 L62.7,382.5 L66.0,371.3 L65.9,362.9 L68.1,362.0 L69.1,359.0 L76.4,358.1 L80.0,354.5 L85.9,352.6 L86.2,348.5 L93.7,344.2 L96.9,338.8 L95.8,337.2 L88.6,337.7 L82.0,340.0 L81.3,343.0 L76.4,343.9 L73.9,340.7 L69.9,338.7 L66.5,339.0 L65.3,336.8 L59.9,334.8 Z" data-tip="Central Darfur · وسط دارفور (SD06): none reported in these sources" tabindex="0"></path><path class="st held" d="M123.8,353.7 L121.7,353.6 L122.4,364.4 L120.3,368.3 L121.7,373.0 L116.8,380.2 L116.2,401.7 L118.8,407.2 L124.8,411.0 L124.6,416.2 L127.7,416.5 L129.9,419.8 L129.6,423.6 L132.2,430.3 L138.8,439.1 L137.5,443.4 L138.0,451.6 L146.9,459.7 L150.6,470.1 L153.0,471.7 L165.2,474.1 L175.8,469.7 L192.7,469.8 L189.4,463.6 L189.1,442.9 L181.9,426.6 L183.1,419.9 L180.5,395.1 L175.2,394.2 L167.3,395.6 L161.0,392.4 L151.5,391.2 L146.7,389.0 L145.4,383.8 L142.4,383.2 L140.9,379.7 L138.9,379.4 L136.1,373.8 L142.8,372.7 L142.9,370.1 L134.8,360.7 L125.4,356.9 L125.3,353.7 L123.8,353.7 Z" data-tip="East Darfur · شرق دارفور (SD05): 1 to 4 (number withheld)" tabindex="0"></path><path class="st c2" d="M412.5,257.8 L406.5,256.3 L395.9,258.8 L392.6,265.4 L395.4,272.3 L408.4,277.8 L416.5,292.1 L408.0,305.8 L406.6,305.7 L408.3,308.4 L404.7,312.5 L405.8,317.6 L408.3,318.2 L410.2,323.9 L426.2,343.1 L429.6,345.7 L434.2,346.3 L435.9,351.2 L440.5,355.7 L444.0,355.7 L451.8,361.4 L459.4,361.8 L465.0,364.1 L473.7,361.9 L479.4,362.9 L478.8,354.2 L483.3,339.0 L490.4,323.1 L489.1,318.2 L492.0,309.8 L485.6,307.8 L476.3,310.3 L470.5,308.4 L468.9,305.6 L471.0,287.9 L464.7,287.3 L430.2,264.0 L419.7,259.0 L412.5,257.8 Z" data-tip="Gedaref · القضارف (SD12): 81 vehicles" tabindex="0"></path><path class="st c1" d="M469.0,209.1 L462.3,206.1 L462.8,233.6 L461.2,235.1 L454.3,238.6 L451.3,237.3 L420.5,237.9 L414.2,246.2 L419.7,259.0 L430.2,264.0 L464.7,287.3 L471.0,287.9 L469.1,307.3 L475.8,310.3 L484.8,307.8 L492.0,309.8 L488.2,277.0 L491.6,274.8 L503.8,240.2 L506.0,238.0 L505.0,235.6 L506.1,233.0 L503.5,228.6 L503.7,224.9 L505.8,224.2 L508.2,220.3 L506.6,214.3 L507.8,211.8 L507.3,210.8 L499.3,213.2 L476.5,212.6 L469.0,209.1 Z" data-tip="Kassala · كسلا (SD11): 7 vehicles" tabindex="0"></path><path class="st c4" d="M363.0,236.4 L346.0,234.1 L336.4,226.2 L330.1,229.7 L352.1,276.2 L354.7,276.4 L355.2,274.8 L362.7,276.3 L362.4,273.1 L363.8,272.5 L362.8,269.7 L364.3,268.4 L371.5,273.5 L376.1,272.7 L380.5,275.2 L380.7,272.5 L383.9,269.2 L392.6,266.9 L394.4,260.1 L396.1,258.8 L406.5,256.3 L419.7,259.0 L414.2,246.2 L395.8,248.7 L382.8,242.1 L367.1,239.2 L363.0,236.4 Z" data-tip="Khartoum · الخرطوم (SD01): 8,134 vehicles" tabindex="0"></path><path class="st zero" d="M189.7,229.6 L189.8,108.9 L73.0,108.9 L73.0,258.0 L59.7,256.2 L51.7,258.6 L43.3,258.0 L37.1,263.6 L37.2,266.5 L39.2,268.5 L39.6,274.5 L37.2,279.6 L35.0,280.0 L32.4,283.3 L35.5,286.3 L33.5,298.0 L36.4,300.0 L39.9,298.4 L44.4,305.1 L43.1,309.9 L44.9,312.0 L47.0,311.8 L47.7,317.8 L44.6,321.0 L43.0,325.9 L46.6,327.3 L44.3,332.6 L45.7,336.1 L48.4,337.3 L56.1,332.8 L65.3,336.8 L66.5,339.0 L69.9,338.7 L73.9,340.7 L76.4,343.9 L81.3,343.0 L82.0,340.0 L88.6,337.7 L95.8,337.2 L96.9,338.8 L94.3,343.6 L87.9,347.8 L98.4,348.8 L105.8,353.8 L125.3,353.7 L125.4,356.9 L134.8,360.7 L142.9,370.1 L142.8,372.7 L136.1,373.8 L138.9,379.4 L140.9,379.7 L142.4,383.2 L145.4,383.8 L146.7,389.0 L151.5,391.2 L161.0,392.4 L167.3,395.6 L175.2,394.2 L180.5,395.1 L175.3,383.4 L177.8,355.4 L185.2,346.3 L186.1,340.3 L190.5,335.1 L191.4,331.0 L188.4,326.5 L188.9,316.8 L188.0,314.1 L184.6,314.0 L184.5,307.8 L179.8,289.6 L175.5,280.1 L171.2,229.6 L189.7,229.6 Z" data-tip="North Darfur · شمال دارفور (SD02): none reported in these sources" tabindex="0"></path><path class="st c3" d="M187.5,229.8 L171.2,229.6 L175.5,280.1 L179.8,289.6 L184.5,307.8 L184.6,314.0 L199.0,313.4 L200.7,315.5 L205.2,315.7 L207.0,313.2 L209.3,315.5 L208.5,318.1 L210.8,319.0 L215.0,316.6 L231.5,324.0 L235.7,322.4 L235.7,325.3 L243.6,328.4 L248.7,334.8 L257.2,338.1 L258.2,348.7 L266.3,361.0 L273.7,362.3 L274.8,371.4 L285.1,368.5 L292.2,378.1 L307.5,373.6 L306.4,365.7 L321.4,364.1 L329.5,366.0 L331.2,352.6 L335.1,348.6 L340.0,346.7 L341.0,344.5 L339.6,339.0 L341.4,335.7 L335.9,330.5 L333.0,321.9 L325.6,315.1 L324.5,306.8 L326.9,296.7 L329.9,293.3 L332.3,294.5 L336.1,291.2 L338.6,283.9 L342.6,283.2 L341.6,281.0 L352.1,276.2 L330.1,229.7 L187.5,229.8 Z" data-tip="North Kordofan · شمال كردفان (SD13): 565 vehicles" tabindex="0"></path><path class="st c1" d="M353.8,39.8 L320.4,39.7 L324.0,33.2 L322.6,31.9 L317.0,39.7 L106.4,39.7 L106.5,108.4 L189.8,108.9 L189.7,229.8 L330.1,229.7 L336.4,226.2 L353.0,201.9 L346.3,183.7 L351.5,171.6 L362.0,161.3 L348.8,147.6 L353.8,39.8 Z" data-tip="Northern · الشمالية (SD17): 7 vehicles" tabindex="0"></path><path class="st c1" d="M461.1,0.0 L447.0,12.4 L438.5,9.9 L429.9,29.4 L412.0,32.7 L407.1,47.7 L392.3,49.4 L382.2,56.5 L384.2,58.9 L385.5,65.0 L383.2,68.8 L382.8,76.2 L391.9,83.4 L396.0,91.8 L393.9,106.7 L396.7,119.2 L396.4,131.5 L400.3,138.0 L410.9,165.8 L427.3,172.3 L444.9,192.6 L460.0,204.7 L476.5,212.6 L499.3,213.2 L508.3,209.7 L511.6,211.2 L517.7,209.9 L520.4,211.5 L524.3,206.2 L524.3,201.7 L532.5,200.0 L533.0,196.5 L535.2,195.8 L537.7,197.4 L540.7,193.9 L542.6,193.7 L542.9,196.6 L544.2,196.8 L544.3,193.8 L549.4,193.8 L555.7,182.1 L560.0,177.9 L557.5,174.6 L557.3,176.7 L556.0,174.2 L554.3,174.7 L553.3,171.6 L552.0,172.6 L549.5,171.4 L551.0,168.6 L549.7,168.1 L548.4,170.8 L545.9,170.5 L543.5,167.4 L544.4,164.1 L538.3,158.7 L534.0,157.2 L531.9,154.0 L525.0,153.5 L520.8,148.3 L520.7,144.0 L519.1,139.6 L518.2,140.0 L519.1,139.2 L517.1,127.1 L515.1,123.0 L516.1,114.6 L513.2,109.0 L514.4,106.0 L513.5,93.4 L515.0,93.1 L515.2,90.3 L510.2,72.4 L511.7,69.0 L510.4,67.9 L512.1,66.6 L512.6,69.3 L515.0,69.7 L516.6,72.7 L513.8,70.7 L515.7,74.6 L518.0,72.2 L509.2,62.1 L507.3,62.3 L509.1,61.8 L506.8,57.8 L505.4,57.8 L506.5,57.2 L503.4,52.8 L504.9,52.9 L504.2,50.1 L502.6,50.0 L504.1,49.2 L502.1,48.9 L503.7,48.1 L503.4,45.5 L501.2,45.4 L503.2,44.9 L503.3,41.7 L501.9,40.5 L503.7,37.5 L488.3,27.2 L487.9,24.8 L484.4,22.8 L480.1,16.5 L471.3,15.7 L466.2,10.6 L465.5,7.6 L464.3,8.1 L461.1,0.0 Z" data-tip="Red Sea · البحر الأحمر (SD10): 10 vehicles" tabindex="0"></path><path class="st c1" d="M379.1,39.7 L353.8,39.8 L348.8,147.6 L362.0,161.3 L351.5,171.6 L346.3,183.7 L353.0,201.9 L336.4,226.2 L346.0,234.1 L363.3,236.4 L367.1,239.2 L382.8,242.1 L395.8,248.7 L414.2,246.2 L419.7,259.0 L414.2,246.2 L420.5,237.9 L451.3,237.3 L454.3,238.6 L462.8,233.6 L462.3,206.1 L446.2,193.9 L427.3,172.3 L410.9,165.8 L400.3,138.0 L396.4,131.5 L396.7,119.2 L393.9,106.7 L396.0,91.8 L391.9,83.4 L388.8,82.2 L382.6,75.4 L383.2,68.8 L385.5,65.0 L384.2,58.9 L382.2,56.5 L392.3,49.4 L379.1,39.7 Z" data-tip="River Nile · نهر النيل (SD16): 16 vehicles" tabindex="0"></path><path class="st c1" d="M396.6,313.9 L394.4,316.3 L394.5,322.4 L392.2,323.2 L394.5,325.8 L392.2,326.7 L394.4,327.9 L393.1,332.0 L389.1,330.2 L390.3,323.5 L387.2,323.6 L387.4,321.3 L381.6,314.9 L375.6,316.1 L375.8,323.0 L377.3,324.9 L374.2,325.1 L371.6,328.0 L372.4,337.6 L370.6,343.1 L373.2,346.7 L376.2,346.2 L374.1,348.3 L379.8,354.7 L375.8,364.3 L381.2,374.5 L382.1,379.5 L383.5,379.6 L379.4,395.9 L407.9,379.0 L414.4,371.0 L416.7,371.3 L422.0,367.4 L428.9,369.1 L433.2,372.3 L437.7,388.6 L442.1,396.0 L449.6,388.9 L463.8,363.8 L459.4,361.8 L451.8,361.4 L444.0,355.7 L439.4,355.0 L435.9,351.2 L434.2,346.3 L428.5,345.0 L419.5,335.4 L410.2,323.9 L408.3,318.2 L396.6,313.9 Z" data-tip="Sennar · سنار (SD14): 41 vehicles" tabindex="0"></path><path class="st zero" d="M87.7,348.2 L86.2,348.5 L85.9,352.6 L80.0,354.5 L76.4,358.1 L69.1,359.0 L68.1,362.0 L65.9,362.9 L66.0,371.3 L62.7,382.5 L65.0,390.5 L63.5,397.0 L64.4,407.0 L60.7,410.8 L52.7,413.1 L50.8,416.0 L45.7,415.4 L42.4,419.4 L36.6,420.8 L35.4,424.4 L39.9,431.8 L50.2,440.2 L62.1,460.1 L63.0,467.6 L59.6,473.0 L62.4,476.1 L61.1,479.4 L59.8,479.4 L60.2,483.1 L57.4,485.3 L60.4,481.5 L59.4,483.8 L55.3,485.8 L54.4,490.5 L57.4,491.9 L58.6,489.3 L60.1,492.0 L57.0,496.6 L57.0,499.4 L60.3,500.6 L60.9,499.3 L63.4,501.8 L67.9,500.5 L75.7,502.2 L81.3,500.9 L80.5,503.6 L85.8,498.4 L90.6,496.5 L92.3,493.7 L91.1,488.9 L93.9,480.0 L92.9,478.0 L98.2,473.1 L97.1,465.3 L107.5,455.2 L107.4,450.3 L109.8,445.4 L124.3,443.8 L133.6,441.1 L137.5,443.4 L138.8,439.1 L132.2,430.3 L129.6,423.6 L129.9,419.8 L127.7,416.5 L124.6,416.2 L124.8,411.0 L118.8,407.2 L116.2,401.7 L116.8,380.2 L121.7,373.0 L120.3,368.3 L122.4,364.4 L121.7,353.3 L106.7,354.0 L98.4,348.8 L87.7,348.2 Z" data-tip="South Darfur · جنوب دارفور (SD03): none reported in these sources" tabindex="0"></path><path class="st held" d="M268.5,361.7 L263.8,361.6 L261.5,370.0 L249.0,387.8 L247.5,395.7 L248.5,397.5 L252.6,397.3 L256.6,407.8 L255.7,412.9 L251.3,416.8 L251.3,420.1 L253.0,423.5 L268.1,436.8 L272.5,446.2 L291.1,457.7 L301.0,466.1 L317.3,464.3 L337.9,439.4 L345.4,440.2 L347.8,438.7 L346.6,431.6 L355.5,422.5 L353.2,415.4 L353.0,397.5 L337.2,381.3 L334.2,381.4 L329.5,366.0 L321.4,364.1 L306.4,365.7 L307.5,373.6 L292.2,378.1 L285.1,368.5 L274.8,371.4 L273.7,362.3 L268.5,361.7 Z" data-tip="South Kordofan · جنوب كردفان (SD07): 1 to 4 (number withheld)" tabindex="0"></path><path class="st zero" d="M32.4,283.3 L31.5,286.4 L28.4,288.4 L30.0,293.3 L19.9,296.7 L19.0,299.5 L21.1,300.7 L20.6,307.4 L24.6,309.5 L24.0,313.6 L14.0,319.2 L8.6,325.2 L16.3,339.7 L10.7,346.4 L6.6,347.4 L3.9,350.5 L6.9,347.4 L0.0,359.0 L4.5,365.4 L11.3,363.7 L12.8,360.8 L21.7,365.0 L18.4,371.5 L22.1,378.9 L22.5,386.2 L26.0,384.8 L30.7,376.9 L26.8,362.9 L32.7,356.0 L36.1,354.4 L35.5,351.9 L38.7,350.1 L38.0,348.7 L40.7,343.4 L45.8,342.0 L47.1,337.3 L44.3,332.6 L46.6,327.3 L43.0,326.1 L44.6,321.0 L47.7,317.8 L47.0,311.8 L44.9,312.0 L43.1,309.9 L44.4,305.1 L39.9,298.4 L36.4,300.0 L33.5,298.0 L35.5,286.3 L32.4,283.3 Z" data-tip="West Darfur · غرب دارفور (SD04): none reported in these sources" tabindex="0"></path><path class="st held" d="M209.3,315.5 L206.7,313.2 L205.2,315.7 L200.7,315.5 L199.0,313.4 L188.0,314.1 L189.2,318.1 L188.4,326.5 L191.3,329.8 L191.3,333.3 L186.1,340.3 L185.2,346.3 L177.8,355.4 L175.3,383.4 L180.5,395.1 L183.1,419.9 L181.9,426.6 L189.1,442.9 L189.4,463.6 L192.7,469.8 L203.2,469.9 L201.0,465.5 L201.1,450.6 L240.0,450.6 L240.0,467.8 L243.3,464.9 L258.0,465.1 L258.0,453.5 L272.8,446.3 L268.1,436.8 L252.0,421.6 L251.3,416.8 L255.7,412.9 L256.6,407.8 L252.6,397.3 L248.5,397.5 L247.5,395.7 L251.8,382.5 L254.0,381.4 L254.6,378.5 L261.5,370.0 L263.8,361.6 L266.3,360.9 L258.2,348.7 L257.2,338.1 L248.7,334.8 L243.6,328.4 L235.7,325.3 L235.7,322.4 L231.5,324.0 L215.0,316.6 L210.8,319.0 L208.5,318.1 L209.3,315.5 Z" data-tip="West Kordofan · غرب كردفان (SD18): 1 to 4 (number withheld)" tabindex="0"></path><path class="st c1" d="M355.6,274.9 L341.6,281.0 L341.8,283.9 L338.6,283.9 L336.1,291.2 L332.3,294.5 L329.9,293.3 L327.1,296.2 L324.5,306.8 L326.6,317.2 L333.0,321.9 L335.9,330.5 L341.4,335.7 L339.6,339.0 L341.0,344.5 L340.0,346.7 L331.5,351.8 L329.1,362.0 L334.2,381.4 L337.2,381.3 L344.5,388.8 L364.9,388.8 L364.8,378.7 L382.1,379.5 L381.2,374.5 L375.8,364.3 L379.8,354.7 L374.1,348.3 L376.2,346.2 L373.2,346.7 L370.6,343.1 L372.4,337.6 L371.6,328.0 L370.4,327.2 L367.3,332.9 L364.7,331.0 L362.9,328.3 L364.1,326.4 L362.5,320.6 L358.1,318.5 L355.1,310.6 L356.6,307.7 L351.8,295.6 L353.8,293.8 L355.8,295.0 L359.1,288.0 L358.2,276.0 L355.6,274.9 Z" data-tip="White Nile · النيل الأبيض (SD09): 9 vehicles" tabindex="0"></path><text class="maplabel" x="381.1" y="303.5">Aj Jazirah</text><text class="maplabel" x="373.3" y="258.9">Khartoum</text><text class="maplabel" x="273.4" y="318.2">North Kordofan</text></svg><div class="legend"><span><i class="sw c1"></i>5 to 49</span><span><i class="sw c2"></i>50 to 499</span><span><i class="sw c3"></i>500 to 4,999</span><span><i class="sw c4"></i>5,000 or more</span><span><i class="sw held"></i>1 to 4, withheld</span><span><i class="sw zero"></i>None reported</span></div>
+    </div>
+    <div>
+      <h2>How much of the registry the map covers</h2>
+      <p class="note">Every vehicle falls in one row or more. A vehicle seen in two posts can be in two rows.</p>
+      <div class="bars"><div class="bar" data-tip="No post about the vehicle gives a location: 93,388 vehicles" tabindex="0"><span class="bl">No post about the vehicle gives a location</span><span class="bt"><i style="width:100.0%"></i></span><span class="bv">93,388</span></div><div class="bar" data-tip="Mapped to one state: 9,193 vehicles" tabindex="0"><span class="bl">Mapped to one state</span><span class="bt"><i style="width:9.8%"></i></span><span class="bv">9,193</span></div><div class="bar" data-tip="Says Kordofan without naming which of its three states: 2,181 vehicles" tabindex="0"><span class="bl">Says Kordofan without naming which of its three states</span><span class="bt"><i style="width:2.3%"></i></span><span class="bv">2,181</span></div><div class="bar" data-tip="Names no place the gazetteer knows (a building, an office, a village): 1,935 vehicles" tabindex="0"><span class="bl">Names no place the gazetteer knows (a building, an office, a village)</span><span class="bt"><i style="width:2.1%"></i></span><span class="bv">1,935</span></div><div class="bar" data-tip="Says Sudan only: 437 vehicles" tabindex="0"><span class="bl">Says Sudan only</span><span class="bt"><i style="width:0.6%"></i></span><span class="bv">437</span></div><div class="bar" data-tip="Names places in more than one state: 12 vehicles" tabindex="0"><span class="bl">Names places in more than one state</span><span class="bt"><i style="width:0.6%"></i></span><span class="bv">12</span></div></div>
+      <p class="note">2,181 vehicles are listed under "Kordofan" with no state. They are left off the map because three states share that name.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="two">
+    <div class="wide">
+      <h2>What the posts say happened to the vehicle</h2>
+      <p class="note">A vehicle listed as found in one post and for sale in another counts under both.</p>
+      <div class="bars"><div class="bar" data-tip="Not stated: 51,246 vehicles. the post gives no status" tabindex="0"><span class="bl">Not stated</span><span class="bt"><i style="width:100.0%"></i></span><span class="bv">51,246</span></div><div class="bar" data-tip="Found: 47,821 vehicles. listed as found, usually in a recovery committee or yard inventory" tabindex="0"><span class="bl">Found</span><span class="bt"><i style="width:93.3%"></i></span><span class="bv">47,821</span></div><div class="bar" data-tip="Spotted: 43,926 vehicles. seen somewhere, not in anyone&#x27;s custody" tabindex="0"><span class="bl">Spotted</span><span class="bt"><i style="width:85.7%"></i></span><span class="bv">43,926</span></div><div class="bar" data-tip="Seeking owner: 39,942 vehicles. someone holding or seeing the vehicle is looking for its owner" tabindex="0"><span class="bl">Seeking owner</span><span class="bt"><i style="width:77.9%"></i></span><span class="bv">39,942</span></div><div class="bar" data-tip="For sale: 37,323 vehicles. offered for sale" tabindex="0"><span class="bl">For sale</span><span class="bt"><i style="width:72.8%"></i></span><span class="bv">37,323</span></div><div class="bar" data-tip="Recovered: 17,630 vehicles. the post says the vehicle was returned to its owner" tabindex="0"><span class="bl">Recovered</span><span class="bt"><i style="width:34.4%"></i></span><span class="bv">17,630</span></div><div class="bar" data-tip="Reported missing: 89 vehicles. an owner reports the vehicle lost or stolen" tabindex="0"><span class="bl">Reported missing</span><span class="bt"><i style="width:0.6%"></i></span><span class="bv">89</span></div><div class="bar" data-tip="In custody: 21 vehicles. held by police or another authority" tabindex="0"><span class="bl">In custody</span><span class="bt"><i style="width:0.6%"></i></span><span class="bv">21</span></div></div>
+    </div>
+    <div>
+      <h2>Most common makes</h2>
+      <p class="note">50% of vehicles are listed with no make.</p>
+      <div class="bars"><div class="bar" data-tip="Hyundai: 39,207 vehicles" tabindex="0"><span class="bl">Hyundai</span><span class="bt"><i style="width:100.0%"></i></span><span class="bv">39,207</span></div><div class="bar" data-tip="Toyota: 24,099 vehicles" tabindex="0"><span class="bl">Toyota</span><span class="bt"><i style="width:61.5%"></i></span><span class="bv">24,099</span></div><div class="bar" data-tip="KIA: 8,201 vehicles" tabindex="0"><span class="bl">KIA</span><span class="bt"><i style="width:20.9%"></i></span><span class="bv">8,201</span></div><div class="bar" data-tip="Mitsubishi: 4,802 vehicles" tabindex="0"><span class="bl">Mitsubishi</span><span class="bt"><i style="width:12.2%"></i></span><span class="bv">4,802</span></div><div class="bar" data-tip="Nissan: 2,452 vehicles" tabindex="0"><span class="bl">Nissan</span><span class="bt"><i style="width:6.3%"></i></span><span class="bv">2,452</span></div><div class="bar" data-tip="BYD: 1,616 vehicles" tabindex="0"><span class="bl">BYD</span><span class="bt"><i style="width:4.1%"></i></span><span class="bv">1,616</span></div><div class="bar" data-tip="Chevrolet: 1,328 vehicles" tabindex="0"><span class="bl">Chevrolet</span><span class="bt"><i style="width:3.4%"></i></span><span class="bv">1,328</span></div><div class="bar" data-tip="Giad: 977 vehicles" tabindex="0"><span class="bl">Giad</span><span class="bt"><i style="width:2.5%"></i></span><span class="bv">977</span></div><div class="bar" data-tip="Mercedes-Benz: 889 vehicles" tabindex="0"><span class="bl">Mercedes-Benz</span><span class="bt"><i style="width:2.3%"></i></span><span class="bv">889</span></div><div class="bar" data-tip="Geely: 847 vehicles" tabindex="0"><span class="bl">Geely</span><span class="bt"><i style="width:2.2%"></i></span><span class="bv">847</span></div><div class="bar" data-tip="Suzuki: 817 vehicles" tabindex="0"><span class="bl">Suzuki</span><span class="bt"><i style="width:2.1%"></i></span><span class="bv">817</span></div><div class="bar" data-tip="Daewoo: 760 vehicles" tabindex="0"><span class="bl">Daewoo</span><span class="bt"><i style="width:1.9%"></i></span><span class="bv">760</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Posts collected per month</h2>
+  <p class="note">The month a post was collected, not the month a vehicle was taken. Collection began on 2026-08-22; the last month is partial.</p>
+  <div class="cols"><div class="col" data-tip="2026-08: 38,495 posts collected" tabindex="0"><span class="cv">38,495</span><i style="height:41.1%"></i><span class="cl">2026-08</span></div><div class="col" data-tip="2026-09: 93,563 posts collected" tabindex="0"><span class="cv">93,563</span><i style="height:100.0%"></i><span class="cl">2026-09</span></div><div class="col" data-tip="2026-10: 46,370 posts collected" tabindex="0"><span class="cv">46,370</span><i style="height:49.6%"></i><span class="cl">2026-10</span></div><div class="col" data-tip="2026-11: 20,688 posts collected" tabindex="0"><span class="cv">20,688</span><i style="height:22.1%"></i><span class="cl">2026-11</span></div></div>
+</section>
+
+<section>
+  <h2>State table</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>P-code</th><th>State</th><th>الولاية</th><th class="n">Vehicles</th></tr></thead>
+    <tbody><tr><td>SD01</td><td>Khartoum</td><td lang="ar" dir="rtl">الخرطوم</td><td class="n">8,134</td></tr><tr><td>SD13</td><td>North Kordofan</td><td lang="ar" dir="rtl">شمال كردفان</td><td class="n">565</td></tr><tr><td>SD15</td><td>Aj Jazirah</td><td lang="ar" dir="rtl">الجزيرة</td><td class="n">509</td></tr><tr><td>SD12</td><td>Gedaref</td><td lang="ar" dir="rtl">القضارف</td><td class="n">81</td></tr><tr><td>SD14</td><td>Sennar</td><td lang="ar" dir="rtl">سنار</td><td class="n">41</td></tr><tr><td>SD16</td><td>River Nile</td><td lang="ar" dir="rtl">نهر النيل</td><td class="n">16</td></tr><tr><td>SD10</td><td>Red Sea</td><td lang="ar" dir="rtl">البحر الأحمر</td><td class="n">10</td></tr><tr><td>SD09</td><td>White Nile</td><td lang="ar" dir="rtl">النيل الأبيض</td><td class="n">9</td></tr><tr><td>SD11</td><td>Kassala</td><td lang="ar" dir="rtl">كسلا</td><td class="n">7</td></tr><tr><td>SD17</td><td>Northern</td><td lang="ar" dir="rtl">الشمالية</td><td class="n">7</td></tr><tr><td>SD02</td><td>North Darfur</td><td lang="ar" dir="rtl">شمال دارفور</td><td class="n">0</td></tr><tr><td>SD03</td><td>South Darfur</td><td lang="ar" dir="rtl">جنوب دارفور</td><td class="n">0</td></tr><tr><td>SD04</td><td>West Darfur</td><td lang="ar" dir="rtl">غرب دارفور</td><td class="n">0</td></tr><tr><td>SD05</td><td>East Darfur</td><td lang="ar" dir="rtl">شرق دارفور</td><td class="n">1 to 4</td></tr><tr><td>SD06</td><td>Central Darfur</td><td lang="ar" dir="rtl">وسط دارفور</td><td class="n">0</td></tr><tr><td>SD07</td><td>South Kordofan</td><td lang="ar" dir="rtl">جنوب كردفان</td><td class="n">1 to 4</td></tr><tr><td>SD08</td><td>Blue Nile</td><td lang="ar" dir="rtl">النيل الأزرق</td><td class="n">1 to 4</td></tr><tr><td>SD18</td><td>West Kordofan</td><td lang="ar" dir="rtl">غرب كردفان</td><td class="n">1 to 4</td></tr><tr><td>SD19</td><td>Abyei PCA</td><td lang="ar" dir="rtl">إدارية أبيي</td><td class="n">0</td></tr></tbody>
+  </table></div>
+</section>
+
+<footer>
+  <span>Data, definitions and caveats: <a href="https://github.com/FirasFirari/arabati-wein/tree/main/open-data">github.com/FirasFirari/arabati-wein/open-data</a> (CC BY 4.0). Search one vehicle: <a href="https://mycarsd.online">mycarsd.online</a>.</span>
+  <span>State boundaries and P-codes: OCHA, Sudan Subnational Administrative Boundaries v03 (CC BY-IGO), simplified for display. Boundaries shown do not imply endorsement.</span>
+  <span>Counts under 5 are withheld. Contact: info@mycarsd.online</span>
+</footer>
+</div>
+<div id="tip" hidden></div>
+<script>
+(function(){
+  var tip=document.getElementById('tip');
+  function show(el,x,y){tip.textContent=el.getAttribute('data-tip');tip.hidden=false;
+    var w=tip.offsetWidth,h=tip.offsetHeight;
+    tip.style.left=Math.max(8,Math.min(x+14,window.innerWidth-w-8))+'px';
+    tip.style.top=(y+h+24>window.innerHeight?y-h-12:y+18)+'px';}
+  document.addEventListener('pointermove',function(e){var el=e.target.closest('[data-tip]');
+    if(el)show(el,e.clientX,e.clientY);else tip.hidden=true;});
+  document.addEventListener('focusin',function(e){var el=e.target.closest('[data-tip]');
+    if(el){var r=el.getBoundingClientRect();show(el,r.left+r.width/2,r.top+r.height/2);}});
+  document.addEventListener('focusout',function(){tip.hidden=true;});
+})();
+</script>

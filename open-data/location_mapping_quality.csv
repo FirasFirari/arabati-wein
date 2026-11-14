@@ -1,0 +1,10 @@
+mapping_class,meaning,vehicles,vehicles_note
+#meta+class,#description,#indicator+vehicles+num,#meta+suppressed
+state,mapped to one state,9193,
+region_only:Kordofan,says Kordofan without naming which of its three states,2181,
+region_only:Darfur,says Darfur without naming which of its five states,0,
+multiple,names places in more than one state,12,
+country_only,says Sudan only,437,
+unmapped,"names no place the gazetteer knows (a building, an office, a village)",1935,
+no_location,no post about the vehicle gives a location,93388,
+all_vehicles,every identified vehicle in the registry,106213,
