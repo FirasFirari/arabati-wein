@@ -31,7 +31,15 @@ search on the site.
 
 `dashboard.html` is a self-contained page drawn from these files
 (`scripts/build_open_dashboard.py`). `map/sdn_admin1_simplified.geojson` is the
-OCHA state layer simplified for that page; use the original for analysis.
+OCHA state layer simplified for that page.
+
+`map/` also holds the QGIS project (`arabati-wein.qgz`, QGIS 3.44), built by
+`scripts/build_open_map.py` with PyQGIS: the full OCHA state layer
+(`sdn_admin1.geojson`) joined to the counts on `adm1_pcode` and saved as
+`vehicles_by_admin1.gpkg`, a categorised style, labels, and a print layout
+exported as `vehicles_by_state.png` and `.pdf`.
+
+![Vehicles reported per state](map/vehicles_by_state.png)
 `kobo/watch_intake.xlsx` is the standing-watch registration as an XLSForm for
 KoboToolbox or ODK, in Arabic and English, built by `scripts/build_kobo_form.py`.
 
