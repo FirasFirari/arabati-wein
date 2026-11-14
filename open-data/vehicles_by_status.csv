@@ -1,0 +1,10 @@
+status,meaning,vehicles,vehicles_note
+#status+code,#description,#indicator+vehicles+num,#meta+suppressed
+not_stated,the post gives no status,51246,
+found,"listed as found, usually in a recovery committee or yard inventory",47821,
+spotted,"seen somewhere, not in anyone's custody",43926,
+seeking_owner,someone holding or seeing the vehicle is looking for its owner,39942,
+for_sale,offered for sale,37323,
+recovered,the post says the vehicle was returned to its owner,17630,
+reported_missing,an owner reports the vehicle lost or stolen,89,
+in_custody,held by police or another authority,21,

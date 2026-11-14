@@ -41,9 +41,56 @@ communities.
 * **Alerts only on identifiers, never on resemblance.** A model score cannot
   trigger an alert on its own.
 
-Read `docs/ARCHITECTURE.md` for how the pieces fit, `docs/RUNBOOK.md` to run
-it, `docs/PRIVACY.md` and `docs/SAFEGUARDING.md` for the rules that do not
-change with money.
+Read `docs/METHOD.md` for what was measured and what went wrong on the way,
+`docs/ARCHITECTURE.md` for how the pieces fit, `docs/RUNBOOK.md` to run it,
+`docs/PRIVACY.md` and `docs/SAFEGUARDING.md` for the rules that do not change
+with money.
+
+## Pieces you can reuse
+
+Three modules have no dependency outside the standard library and this
+package, and are useful to anyone extracting identifiers from Arabic text with
+a language model.
+
+**The grounding gate** (`carhunt/gates.py`): reject any number a model returns
+that is not in the source.
+
+```python
+from carhunt import gates
+
+rows = [{"chassis": "421376"}, {"chassis": "999111"}]      # what a model returned
+gates.check_entries(rows, "سانتافي 421376 ابيض", photos_unread=False)
+# ["chassis='999111' not in the post or its OCR: nulled"]
+# rows == [{"chassis": "421376"}, {"chassis": None}]
+```
+
+**The list parser** (`carhunt/kashf.py`): read Sudanese vehicle inventory lists
+(كشف / حصر) without a model. It copies digits from the line or emits nothing.
+
+```python
+from carhunt import kashf
+
+out = kashf.parse("هايلوكس 1خ63922 شاسي 774512")
+# out["vehicles"][0] -> chassis "774512", plate "1 خ 63922", model_key "toyota hilux"
+# out["residue"]     -> lines with a number but no vocabulary it knows, for a model to read
+```
+
+**The location mapper** (`carhunt/geo.py`): turn a free-text Sudanese location,
+Arabic or Latin, into an OCHA state P-code, or say why it cannot.
+
+```python
+from carhunt import geo
+
+geo.locate("امدرمان الثورة").kind     # "SD01"
+geo.locate("Kordofan").kind           # "region_only": three states share the name
+```
+
+## Open data
+
+`open-data/` holds aggregate counts from the registry as CSV with HXL hashtags
+and state P-codes: vehicles by state, status and make, with a data
+responsibility note and a KoboToolbox form for collecting watch registrations
+offline. No identifier or contact is in it. Start at `open-data/README.md`.
 
 ## Quick start
 
@@ -76,18 +123,20 @@ tests/              pytest (public + private); fixtures use a fictional car
 site/src/           the page template (HTML, CSS, search JavaScript)
 site/static/        content pages, robots, llms.txt, headers
 site/functions/     the Netlify function (instant watch-registration alert)
-docs/               architecture, runbook, privacy, safeguarding
+docs/               method, architecture, runbook, privacy, safeguarding
+open-data/          aggregate counts (CSV + HXL + P-codes), dashboard, Kobo intake form
 config.example.yaml every key, documented
 ```
 
-## Status (October 2026)
+## Status (November 2026)
 
-Measured from the database on 2026-10-18 and republished monthly at
-https://mycarsd.online/stats.html: 159,310 posts collected since 22 August 2026,
-78,379 distinct chassis numbers searchable, 93,584 identified vehicles, 40
-standing watches, 2 leads relayed, 0 confirmed recoveries so far. The project
-is unfunded and runs on one computer; the funding ladder and what each level
-adds are on the support page.
+Measured from the database on 2026-11-14 and republished at
+https://mycarsd.online/stats.html: 199,117 posts collected since 22 August 2026,
+90,441 distinct chassis numbers searchable, 106,213 identified vehicles, 137
+standing watches, 2 leads relayed, 0 confirmed recoveries so far. 136,422 posts
+are still waiting to be processed. The project runs on one computer. It has a
+fiscal host (Open Source Europe, via Open Collective) and no funding yet; the
+funding ladder and what each level adds are on the support page.
 
 ## Contributing and reporting
 

@@ -1,0 +1,11 @@
+month_collected,platform,posts,posts_note
+#date+month,#meta+platform,#indicator+posts+num,#meta+suppressed
+2026-08,facebook,31626,
+2026-08,sent_to_us_directly,,1-4
+2026-08,telegram,6869,
+2026-09,facebook,93399,
+2026-09,telegram,164,
+2026-10,facebook,46307,
+2026-10,telegram,63,
+2026-11,facebook,20677,
+2026-11,telegram,11,

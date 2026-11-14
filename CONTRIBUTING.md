@@ -18,6 +18,7 @@ it is run by volunteers. Useful contributions, in rough order of impact:
 
 ## Ground rules
 
+* Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 * Read `docs/SAFEGUARDING.md` and `docs/PRIVACY.md` first. Changes that would
   publish photos, OCR text, watch contacts, or that would message a poster, are
   rejected.

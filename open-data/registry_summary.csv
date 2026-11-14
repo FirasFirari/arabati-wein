@@ -1,0 +1,10 @@
+indicator,value,definition
+#indicator+code,#indicator+value,#description
+posts_collected,199117,public posts collected from Facebook groups and pages and Telegram channels
+photos_collected,258910,photos attached to those posts
+photos_transcribed,110107,photos read by OCR
+sighting_rows,1481878,"extracted rows; lists are reposted to many groups, so this overstates vehicles"
+identified_vehicles,106213,"distinct normalised chassis numbers, plus distinct plates on rows with no chassis"
+distinct_chassis,90441,distinct normalised chassis numbers
+first_post_collected,2026-08-22,date collection began
+latest_post_collected,2026-11-10,date of the newest post in this build
