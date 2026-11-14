@@ -6,7 +6,9 @@
   "stats": "https://mycarsd.online/stats.json",
   "updated": "__BUILD_DATE__",
   "currency": "USD",
-  "status": "unfunded; seeking a fiscal sponsor and a Sudanese civil-society partner; no donation route open yet",
+  "status": "no funds received yet; contributions open on Open Collective since 2026-11-12; seeking a Sudanese civil-society partner",
+  "donate_url": "https://opencollective.com/arabeti-ween/donate",
+  "fiscal_host": {"name": "Open Source Europe", "collective": "https://opencollective.com/arabeti-ween", "host_fee_percent": 8, "holds_funds_in": "EUR"},
   "contact": "__CONTACT__",
   "raised_usd": 0,
   "first_goal_usd": 3000,
@@ -50,7 +52,7 @@
     {"line": "Hosting, domain, security review", "basis": "", "amount": 300},
     {"line": "Community lead, part time", "basis": "twelve months", "amount_range": [9600, 14400]},
     {"line": "Engineer, half time", "basis": "twelve months", "amount_range": [24000, 36000]},
-    {"line": "Fiscal sponsor or registration, accounts", "basis": "typically 10% of funds", "amount": null}
+    {"line": "Fiscal host, accounts", "basis": "Open Source Europe keeps 8% of funds received, plus payment processor fees", "amount": null}
   ],
   "budget_totals_usd": {"minimum_programme_no_salaries": 9500, "staffed_programme": [50000, 60000]},
   "principles": [
@@ -67,5 +69,5 @@
     "Contact a seller or holder",
     "Promise a match"
   ],
-  "seeking": ["fiscal sponsor (Open Source Collective or equivalent)", "Sudanese civil-society co-applicant", "recovery-group and field-platform data partnerships", "in-kind cloud credits", "grants in the US$3k–60k range"]
+  "seeking": ["first contributions toward the US$3,000 goal", "Sudanese civil-society co-applicant", "recovery-group and field-platform data partnerships", "in-kind cloud credits", "grants in the US$3k–60k range"]
 }
