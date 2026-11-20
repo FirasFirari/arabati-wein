@@ -104,8 +104,7 @@ def main() -> None:
         print("\ndry run: nothing written. Add --apply to update.")
         return
     if not changes:
-        print("
-nothing to change; no undo file written")
+        print("\nnothing to change; no undo file written")
         return
     undo_path = ROOT / "data" / f"mudalla_accent_{datetime.datetime.now():%Y-%m-%d_%H%M%S}.jsonl"
     # A second --apply on 2026-11-20 found nothing to change and overwrote the
