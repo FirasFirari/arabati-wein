@@ -57,6 +57,22 @@ UA = ("Mozilla/5.0 (Linux; Android 13; SM-A135F) AppleWebKit/537.36 "
 # candidate covers the unlikely case that the first matches something whole.
 MISS_QUERIES = ["804519372661", "390275618404"]
 
+# Put an unbreakable 43-character "number" in every identifier and contact on
+# the page, and add a contact line to the first timeline entry if none is there.
+LONG_NUMBERS = r"""
+() => {
+  const long = '0123456789/0123456789/0123456789/0123456789';
+  const top = document.querySelector('#results .tl-top');
+  if (top && !top.querySelector('bdi')) {
+    const s = document.createElement('span');
+    s.innerHTML = 'x <bdi dir="ltr"></bdi>';
+    top.appendChild(s);
+  }
+  // not the date column: a date is ten characters by construction
+  document.querySelectorAll('#results .idrow bdi, #results .tl-top bdi').forEach(b => { b.textContent = long; });
+}
+"""
+
 PROBE = r"""
 () => {
   const de = document.documentElement;
@@ -180,6 +196,15 @@ def run(base: str, shots: pathlib.Path | None) -> int:
                     page.wait_for_timeout(800)
                     judge(f"{tag} english", page)
                     page.click("#lang-toggle")       # leave the stored preference as it was
+                    # Worst case for every number on the page, whatever today's
+                    # data holds: a long word with no place to break. Waiting
+                    # for detail.bin first, because the contact line that broke
+                    # the page on 2026-11-20 only exists once it has loaded.
+                    with contextlib.suppress(Exception):
+                        page.wait_for_selector("#results .tl-top", timeout=60_000)
+                    page.evaluate(LONG_NUMBERS)
+                    page.wait_for_timeout(300)
+                    judge(f"{tag} long unbroken numbers", page)
                     page.close()
                 ctx.close()
         browser.close()
