@@ -44,6 +44,7 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from carhunt import deadman, health  # noqa: E402
+from carhunt.config import load_config  # noqa: E402
 
 DATA = ROOT / "data"
 JOB = "daily_free_lane"
@@ -147,6 +148,25 @@ def main() -> int:
                 "--batch", str(wave / "batch_kashf.json"), "--tier", "kashf_parser"])
         else:
             log("kashf: no new list posts")
+
+    # Text posts with a labelled chassis or plate, read by rule (carhunt/prose.py).
+    # After free_pass and the list parser, before Gemini: every post settled
+    # here is a model call the free quota keeps for a post that needs one.
+    # OFF unless config.yaml says `prose_lane: {enabled: true}`.
+    if (load_config().get("prose_lane") or {}).get("enabled"):
+        pwave = DATA / f"prose_auto_{datetime.date.today():%Y%m%d}"
+        steps["prose parse"] = run("prose parse", [
+            "scripts/prose_verdicts.py", "--out", str(pwave),
+            # bounded: the first runs face a backlog of ~32,000 posts and
+            # ~2 million rows, too much for one verdict file and one ingest
+            "--limit", str((load_config().get("prose_lane") or {}).get("max_posts", 3000))])
+        if steps["prose parse"] == 0 and (pwave / "verdicts_prose.json").exists():
+            if json.loads((pwave / "verdicts_prose.json").read_text("utf-8")):
+                steps["prose ingest"] = run("prose ingest", [
+                    "scripts/ingest_local_verdicts.py", str(pwave / "verdicts_prose.json"),
+                    "--batch", str(pwave / "batch_prose.json"), "--tier", "prose_parser"])
+            else:
+                log("prose: no new text posts with an identifier")
 
     gemini_steps = []
     for model in MODELS:

@@ -110,3 +110,15 @@ def test_disputed_ocr_in_the_database_marks_the_row(tmpdb):
     got = con.execute("SELECT chassis, low_confidence FROM vehicles WHERE post_id = ?", (pid,)).fetchall()
     con.close()
     assert got[0][0] == "JTTEST01J3L410078" and got[0][1]
+
+
+def test_invisible_marks_inside_a_number_do_not_split_it():
+    """A direction mark pasted inside a number is not a separator: the value
+    a person reads is one number, and the gate must see the same."""
+    runs = source_runs("ركشه سوداء 340‎86\nكامري 4890‪055‬29")
+    assert grounded("34086", runs)
+    assert grounded("489005529", runs)
+    # ...and it still fails closed on a value that is not there
+    assert not grounded("34087", runs)
+    # a visible separator between two numbers still keeps them apart
+    assert not grounded("3408699", source_runs("340‎86\n99"))
