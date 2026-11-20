@@ -68,10 +68,21 @@ hold code in memory: restart them after a code or config change.
 
 1. `python -m carhunt.free_pass` — deterministic settles
 2. `scripts\kashf_verdicts.py` + `scripts\ingest_local_verdicts.py --tier kashf_parser` — the كشف lists
-3. `scripts\openai_backlog.py --provider gemini --use-ocr ...` for each of the two
+3. `scripts\prose_verdicts.py` + `scripts\ingest_local_verdicts.py --tier prose_parser`:
+   text posts with a labelled chassis or plate, read by rule (`carhunt/prose.py`).
+   Runs only when `config.yaml` has `prose_lane: {enabled: true}`; `max_posts`
+   caps one run (default 3000). A post with any number the rules cannot explain,
+   or with no identifier at all, is left for step 4.
+4. `scripts\openai_backlog.py --provider gemini --use-ocr ...` for each of the two
    Flash-Lite models (their own free daily quotas), then `--replay-spool` for any
    save that failed
-4. RECONCILE (claimed vehicles vs stored rows) and the raw sweep with `--db-scan`
+5. RECONCILE (claimed vehicles vs stored rows) and the raw sweep with `--db-scan`
+
+After any change to `carhunt/prose.py`, re-measure before it runs again:
+`scripts\prose_benchmark.py` (recall against posts a model already read),
+`scripts\prose_benchmark.py --holdout`, and `scripts\prose_audit.py` (needs no
+answer key: grounding, phone and year shapes, known contact numbers). All three
+are read-only.
 
 Photos are read by the separate Photo OCR task (`gemini_ocr_sweep.py`): each
 distinct image once (files are hashed; copies get the text at zero calls), a
@@ -149,6 +160,21 @@ Verified 2026-11-05: an offsite copy decrypted, matched its MANIFEST sha256 and
 held an intact database.
 
 ## Repairs
+
+**Model names (`carhunt/aliases.py`).** A row's model key is computed once, at
+ingest, so a change to the alias table does not reach stored rows by itself:
+
+    git show HEAD:carhunt/aliases.py > old_aliases.py     # the rules being replaced
+    python scriptsederive_model_keys.py --old-rules old_aliases.py           # dry run
+    python scriptsederive_model_keys.py --old-rules old_aliases.py --apply   # writes an undo file first
+    python scriptsederive_model_keys.py --undo datalias_rederive_<stamp>.jsonl
+
+Then run `python scriptslias_audit.py` and read section (a2): every model added
+to the table brings look-alike words through the fuzzy match (a Kia Pride read
+as a Prado, "petrol" as a Patrol). Add the false ones to `SKELETON_STOP`. Get the
+tests green before `--apply`, and check that nothing is left with the DRY run,
+never with a second `--apply`. The page's search code mirrors the matching rules;
+`tests/test_js_parity.py` fails if the two drift.
 
 `python scripts\regate_registry.py` (dry run) / `--apply` brings rows already in
 the registry up to the current rules: chassis_norm recomputed, doubt flags added
