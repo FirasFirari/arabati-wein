@@ -165,11 +165,11 @@ held an intact database.
 ingest, so a change to the alias table does not reach stored rows by itself:
 
     git show HEAD:carhunt/aliases.py > old_aliases.py     # the rules being replaced
-    python scriptsederive_model_keys.py --old-rules old_aliases.py           # dry run
-    python scriptsederive_model_keys.py --old-rules old_aliases.py --apply   # writes an undo file first
-    python scriptsederive_model_keys.py --undo datalias_rederive_<stamp>.jsonl
+    python scripts\rederive_model_keys.py --old-rules old_aliases.py           # dry run
+    python scripts\rederive_model_keys.py --old-rules old_aliases.py --apply   # writes an undo file first
+    python scripts\rederive_model_keys.py --undo data\alias_rederive_<stamp>.jsonl
 
-Then run `python scriptslias_audit.py` and read section (a2): every model added
+Then run `python scripts\alias_audit.py` and read section (a2): every model added
 to the table brings look-alike words through the fuzzy match (a Kia Pride read
 as a Prado, "petrol" as a Patrol). Add the false ones to `SKELETON_STOP`. Get the
 tests green before `--apply`, and check that nothing is left with the DRY run,
