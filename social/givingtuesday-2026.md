@@ -1,8 +1,11 @@
 # GivingTuesday, Tuesday 1 December 2026: three drafts
 
-Status: DRAFTS, written 2026-11-14, nothing posted. Owner approves each before it goes out.
+Status: DRAFTS, written 2026-11-14, revised 2026-11-15 after the first confirmed recovery (watches
+137 -> 172, recoveries 0 -> 1, one recovery sentence added to each). Nothing posted. Owner approves
+each before it goes out.
 Numbers are from `mycarsd.online/stats.json` generated 2026-11-12 (90,441 chassis, 199,117 posts,
-137 watches). Re-read stats.json on the day and update the three numbers before posting.
+137 watches); the watch count 172 is from `data/watches.json` fetched 2026-11-15. Re-read stats.json
+on the day and update the three numbers before posting.
 Goal and what it buys are from `site/static/funding.json` (first_goal_usd 3000, tier 1).
 
 Suggested timing: Open Collective update on Monday 30 November, Facebook Page and LinkedIn on
@@ -17,7 +20,7 @@ nobody is asked to pay and that there is no private collection.
 ```text
 الثلاثاء ١ ديسمبر هو «ثلاثاء العطاء»، وعندنا خبر لكل من سألنا كيف يساعد.
 
-السجل شغال من أغسطس على كمبيوتر منزلي واحد وبدون أي تمويل. اليوم فيهو ٩٠٬٤٤١ رقم شاسي من ١٩٩٬١١٧ منشور، و١٣٧ أسرة مسجلة تنبيه على رقمها.
+السجل شغال من أغسطس على كمبيوتر منزلي واحد وبدون أي تمويل. اليوم فيهو ٩٠٬٤٤١ رقم شاسي من ١٩٩٬١١٧ منشور، و١٧٢ أسرة مسجلة تنبيه على رقمها. ويوم ١٥ نوفمبر رجعت أول عربة لصاحبها بعد تنبيه وصله منا.
 
 من نوفمبر صار دعم المشروع ممكناً عبر صفحته في Open Collective. المال تحفظه جهة حاضنة اسمها Open Source Europe وليس الأسرة، وكل مساهمة وكل مصروف منشور للجميع في نفس الصفحة.
 
@@ -47,12 +50,12 @@ This month the project got a fiscal host, Open Source Europe. Money for it goes 
 
 The first thing it buys is a server that stays on.
 
-137 families are waiting on that hourly check.
+172 families are waiting on that hourly check. One has its vehicle back.
 
 Tuesday 1 December is GivingTuesday.
 ```
 
-84 words. Number: 137 = `standing_watches` in stats.json (2026-11-12).
+90 words. Number: 172 = watches in `data/watches.json` (2026-11-15). The recovery: `social/linkedin/2026-11-15/post.md`.
 
 First comment:
 
@@ -73,7 +76,7 @@ Editor note: separate paragraphs with Shift+Enter twice (plain Enter breaks the 
 ```text
 Tuesday 1 December is GivingTuesday, and it is the first one on which Arabati Wein can receive money at all. Open Source Europe became our fiscal host on 12 November 2026. Contributions are held by them, and every contribution and expense appears on this page.
 
-Where the registry stands: 90,441 distinct chassis numbers from 199,117 public posts, 137 standing watches, 2 leads passed to families, 0 recoveries confirmed. It still runs on one home computer with no funding.
+Where the registry stands: 90,441 distinct chassis numbers from 199,117 public posts, 172 standing watches, 4 leads passed to owners, 1 recovery confirmed (a rickshaw, collected by its owner on 15 November). It still runs on one home computer with no funding.
 
 The first goal is US$3,000. It pays for a cloud server for the collectors and the hourly watch check with monitoring and backups for two years, an automatic notice to a registrant when their number appears, and clearing the processing backlog once.
 
