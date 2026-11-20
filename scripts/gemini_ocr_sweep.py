@@ -209,6 +209,10 @@ class Reader:
                         continue
                     raise Unavailable(f"{model}: per-minute limit")
                 if "429" in msg:
+                    # name the quota that was hit: the 160-char line above cuts
+                    # it off, so "daily" was an assumption nobody could check
+                    log(f"  {model}: 429 quota detail: "
+                        f"{re.findall(r'(quotaId|quotaValue|retryDelay).{1,6}?([A-Za-z0-9_.-]+)', msg)[:9]}")
                     raise QuotaHit(msg[:1500])
                 if "503" in msg or "500" in msg or "timed out" in msg.lower():
                     if attempt < attempts - 1:

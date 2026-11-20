@@ -800,6 +800,11 @@ def main() -> None:
                     quota_spent.set()
                     print(f"  daily quota reached after {meter.calls} calls — stopping this "
                           f"model's run; the posts stay queued", flush=True)
+                    # name the quota that was hit, so "daily" can be checked
+                    import re as _re
+                    print("  429 quota detail: " + str(_re.findall(
+                        r"(quotaId|quotaValue|retryDelay).{1,6}?([A-Za-z0-9_.-]+)",
+                        msg)[:9]), flush=True)
                 return
             with lock:
                 errors += 1
