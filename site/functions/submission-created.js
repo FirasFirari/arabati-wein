@@ -74,8 +74,12 @@ exports.handler = async (event) => {
   const note = (data.note || "").replace(/\s+/g, " ").trim();
   const when = (payload.created_at || new Date().toISOString())
     .slice(0, 16).replace("T", " ");
+  // The page sets update_of when a visitor adds details to a registration
+  // they already made: same car, same person, not a new watch.
+  const isUpdate = !!String(data.update_of || "").trim();
   const lines = [
-    "CarHunt: new standing-watch registration (instant)",
+    isUpdate ? "CarHunt: a registrant UPDATED their standing watch (not a new one)"
+             : "CarHunt: new standing-watch registration (instant)",
     `• ${ident} · ${when} UTC · contact: ${contactType(data.contact)}`,
   ];
   if (note) lines.push(`  note: ${note.slice(0, 160)}`);
