@@ -342,6 +342,12 @@ header p.sub { order: 3; }
 }
 .tl-body { flex: 1; min-width: 0; }
 .tl-top { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: .9rem; }
+/* A contact written as two phone numbers joined by a slash, with no space,
+   is one unbreakable 21-character word. On a 277px screen it pushed the whole
+   page 25px too wide, but only once detail.bin had arrived, so the layout
+   check failed one run in three (2026-11-20). Let it break anywhere. */
+.tl-top span { min-width: 0; overflow-wrap: anywhere; }
+bdi { overflow-wrap: anywhere; }
 .tl-body .desc {
   margin: 4px 0 0; font-size: .88rem; color: var(--muted);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;

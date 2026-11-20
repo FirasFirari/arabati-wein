@@ -129,6 +129,13 @@ python scripts\build_deploy.py               # -> site/deploy (stats, sitemap, s
 python scripts\netlify_deploy.py             # Cloudflare payloads -> Netlify DRAFT -> verify -> publish
 ```
 
+`netlify_deploy.py` publishes what is in `site/deploy`, nothing newer. Run the
+export and `build_deploy.py` first, or it refuses a stale `stats.json`
+(2026-11-20: the folder still held the build of 11-12). After a change to
+`site/src/index.template.html` only, `python -m carhunt.export_site --ui-only`
+rebuilds the page around the payloads already built (seconds, no database
+pass); `build_deploy.py` alone does NOT pick up a template change.
+
 What `netlify_deploy.py` refuses, and why:
 * anything `carhunt/publish_guard.py` finds in what ships — decompressed: a
   number listed in `publish.forbidden_contacts`, a phone number in free text
