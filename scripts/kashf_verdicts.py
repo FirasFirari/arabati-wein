@@ -40,16 +40,16 @@ except Exception:
     pass
 
 from carhunt import db
+from carhunt.aliases import make_model_for
 from carhunt.kashf import looks_like_kashf, parse
 
 # canonical model key -> ("Make", "Model") for the vehicle row. The key is
 # already "toyota corolla" shaped, so this is a split, not a second table —
 # aliases.py stays the single source of model knowledge.
-def _make_model(key: str | None) -> tuple[str | None, str | None]:
-    if not key:
-        return None, None
-    make, _, model = key.partition(" ")
-    return make.title() or None, (model.title() or None)
+def _make_model(key):
+    """make/model for a key. NOT a split on the first space: that put body types
+    in the make field (41,101 rows said make "Pickup", model "(بوكس)")."""
+    return make_model_for(key)
 
 
 SQL_UNSCORED = """

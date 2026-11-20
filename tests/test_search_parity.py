@@ -46,6 +46,7 @@ def _cut(name: str) -> str:
 
 STUBS = """
 const ALIASES = {};
+const SKEL_STOP = [];
 const t = (k, a) => a;
 """
 

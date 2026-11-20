@@ -61,9 +61,14 @@ its list unless a vehicle has its own. If the post contains no vehicles,
 Write "make" and "model" in canonical English regardless of Arabic spelling
 or local nickname — Sudanese posts vary wildly: كورولا/كورلا/كرلا/كريلا are
 all Toyota Corolla; سحلية/منفوخة = Hyundai Avante; دبدوب/فيرنا = Hyundai
-Accent; مضلع = Toyota Hilux double-cab; دفار = Land Cruiser pickup; كلك =
-Hyundai Getz; بومه = Mitsubishi Lancer; حرجلي = older Toyota Camry;
-اتوز = Hyundai Atos; مورنينق = Kia Picanto/Morning. Preserve the post's
+Accent; مضلع on its own = Hyundai Accent (a model named beside it wins:
+افانتي مضلع is an Avante); كلك = Hyundai Getz; بومه / قرش = Mitsubishi
+Lancer; كريز / كريس / قريس = Hyundai Grace minibus; اتوز / اتوس = Hyundai
+Atos; مورنينق / مورنق = Kia Picanto/Morning; كروزر / برادو = Toyota Land
+Cruiser. دفار is a LIGHT TRUCK (a body type, any make), never a Land
+Cruiser; امجاد is a MINIVAN type; جياد (GIAD) is the local assembler, a make
+and not a model ("اكسنت جياد" is a Hyundai Accent); حرجلي is a COLOUR, not a
+Camry. Preserve the post's
 original wording in "description".
 
 CRITICAL — these Sudanese words name a BODY TYPE, not a model, and are often

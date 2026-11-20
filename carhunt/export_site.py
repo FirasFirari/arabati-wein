@@ -18,7 +18,7 @@ import sys
 
 from . import db
 from . import publish_guard
-from .aliases import ALIASES
+from .aliases import ALIASES, SKELETON_STOP
 from .config import PROJECT_ROOT, load_config
 
 OUT = PROJECT_ROOT / "site" / "arabati-wein.html"
@@ -161,6 +161,7 @@ def fill_template(*, stats_js: str, fbkind_js: str, core_url: str,
             .replace("__DATA_HOST__", data_host())
             .replace("__CLARITY__", clarity_snippet())
             .replace("__ALIASES__", js_literal(ALIASES))
+            .replace("__SKEL_STOP__", js_literal(sorted(SKELETON_STOP)))
             .replace("__STATS__", stats_js)
             .replace("__FBKIND__", fbkind_js)
             .replace("__SRCNAMES__", js_literal(source_names()))

@@ -649,6 +649,7 @@ EN.notice = (updated) => `<strong>Important:</strong> this data is collected aut
 const t = (key, ar) => (LANG === 'en' ? (EN[key] ?? ar) : ar);
 
 const ALIASES = __ALIASES__;
+const SKEL_STOP = __SKEL_STOP__;
 const STATS = __STATS__;
 const FBKIND = __FBKIND__;   // facebook source id -> "g" group | "p" profile/page
 const SRCNAME = __SRCNAMES__; // facebook source id -> group name (config.yaml)
@@ -677,7 +678,7 @@ function isPlateShaped(s) {
 // كورولا / كورلا / كرلا / كريلا all reduce to كرل and match Toyota Corolla.
 const normAr = s => (s || '').toLowerCase()
   .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
-  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[\u0640\u064B-\u065F\u0670]/g, '');
+  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/\u06a9/g, '\u0643').replace(/\u06cc/g, '\u064a').replace(/[\u0640\u064B-\u065F\u0670]/g, '');
 const skeleton = w => { w = normAr(w); return w ? w[0] + w.slice(1).replace(/[اوي]/g, '') : ''; };
 
 const ALIAS_EXACT = {}, ALIAS_SKEL = {};
@@ -688,15 +689,53 @@ for (const [key, names] of Object.entries(ALIASES)) {
     if (s.length >= 3 && !(s in ALIAS_SKEL)) ALIAS_SKEL[s] = key;
   }
 }
+// Word-level alias matching, mirroring carhunt/aliases.py (rules 1 and 2
+// there): an alias must start a word and end one; 4+ letters may run on into
+// the same word; digits and a change of script end a word; colour words are
+// never skeleton-matched. No regex lookbehind: older Safari cannot parse it.
+const ARABIC_PREFIXES = ['ال', 'وال', 'بال', 'لل', 'و', 'ب', 'ل'];
+const RUN_ON_MIN = 4;
+const SKELETON_STOP = new Set(SKEL_STOP);
+const isAr = c => (c >= '\u0621' && c <= '\u064a') || (c >= '\u066e' && c <= '\u06d3');
+const isLat = c => c >= 'a' && c <= 'z';
+const isDig = c => (c >= '0' && c <= '9') || (c >= '\u0660' && c <= '\u0669') || (c >= '\u06f0' && c <= '\u06f9');
+function startsWord(n, i, arabic) {
+  const same = arabic ? isAr : isLat;
+  if (i === 0 || !same(n[i - 1])) return true;
+  if (!arabic) return false;
+  for (const p of ARABIC_PREFIXES) {
+    const j = i - p.length;
+    if (j >= 0 && n.startsWith(p, j) && (j === 0 || !isAr(n[j - 1]))) return true;
+  }
+  return false;
+}
+function endsWord(n, j, alias) {
+  if (j === n.length) return true;
+  const ch = n[j], last = alias[alias.length - 1];
+  if (isDig(last)) return !isDig(ch) && !isLat(ch);
+  const same = isAr(last) ? isAr : isLat;
+  return !same(ch) || alias.length >= RUN_ON_MIN;
+}
+function findWord(n, alias) {
+  const arabic = isAr(alias[0]);
+  let i = n.indexOf(alias);
+  while (i !== -1) {
+    if (endsWord(n, i + alias.length, alias) && startsWord(n, i, arabic)) return i;
+    i = n.indexOf(alias, i + 1);
+  }
+  return -1;
+}
 function modelKeysIn(text) {
   const n = normAr(text), found = new Set();
-  for (const [alias, key] of Object.entries(ALIAS_EXACT)) if (n.includes(alias)) found.add(key);
+  for (const [alias, key] of Object.entries(ALIAS_EXACT)) if (findWord(n, alias) !== -1) found.add(key);
   for (const w of n.match(/[؀-ۿ]{3,}/g) || []) {
+    if (SKELETON_STOP.has(w) || (w.startsWith('ال') && SKELETON_STOP.has(w.slice(2)))) continue;
     const key = ALIAS_SKEL[skeleton(w)];
     if (key) found.add(key);
   }
   return found;
 }
+// end modelKeysIn
 
 const STATUS_AR = { spotted: 'شوهدت', for_sale: 'معروضة للبيع', seeking_owner: 'تبحث عن صاحبها',
                     recovered: 'مستردة', unknown: '' };
