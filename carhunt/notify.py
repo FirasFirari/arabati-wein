@@ -250,13 +250,17 @@ def compose_lead(watch: dict, hit: dict, post: dict) -> str:
         f"مهم: لا تتواصل مع صاحب المنشور مباشرة ولا تدفع أي مبلغ لأي شخص. "
         f"الاسترداد الرسمي مجاني: بلّغ على {POLICE} ثم اذهب بنفسك إلى إدارة المرور "
         f"أو فرعية مكافحة سرقة السيارات. لا يوجد رقم واتساب رسمي.\n"
+        f"ونرجو أن تخبرنا بما يحدث إن تابعت الأمر، سواء وجدت العربة أم لا. "
+        f"ردّك يساعدنا في مساعدة غيرك.\n"
         f"— عربتي وين؟\n\n"
         f"Hello. This is Arabati Wein ({SITE}). The number you registered ({ident}) "
         f"appeared {kind_en} in a public post on {src_en}{' on ' + date if date else ''}.\n"
         f"{link_en}\nThis is an automatic alert, not a confirmation; check the post yourself.\n"
         f"Important: do not contact the poster directly and never pay anyone. Official recovery "
         f"is free: file at {POLICE} and go in person to the Traffic Department or the "
-        f"vehicle-theft branch. There is no official WhatsApp number."
+        f"vehicle-theft branch. There is no official WhatsApp number.\n"
+        f"If you follow this up, please tell us what happens, whether or not you find "
+        f"the vehicle. Your reply helps us help others."
     )
 
 
