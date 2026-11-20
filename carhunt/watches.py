@@ -141,6 +141,25 @@ def readings(identifier: str) -> tuple[str, set]:
     return norm_chassis(identifier), runs
 
 
+def distinct_vehicles(watches: list[dict]) -> int:
+    """How many vehicles the registrations cover, for public counts.
+
+    Rows overstate it: people resubmit the form, and register the full VIN
+    and then its last digits (2026-11-19: 212 rows, 199 vehicles). Two rows
+    are one vehicle when their readings are equal, or when one chassis
+    reading of 5+ characters ends the other. Numbers one digit apart stay
+    separate: nothing here can tell a typo from a second car.
+    """
+    keys = set()
+    for w in watches:
+        qn, runs = readings(w["identifier"])
+        keys.add(qn or "plate:" + "|".join(sorted(runs)) or w["identifier"])
+    chassis = [k for k in keys if not k.startswith("plate:")]
+    fragments = {a for a in chassis if len(a) >= 5
+                 and any(b != a and b.endswith(a) for b in chassis)}
+    return len(keys - fragments)
+
+
 def scan(conn, watches: list[dict]) -> dict[str, list[dict]]:
     """Match every watch against the registry in ONE pass over `vehicles`.
 

@@ -25,7 +25,7 @@ def main() -> None:
     conn = db.connect()
 
     rows = conn.execute(
-        "SELECT p.id, p.source, p.text, "
+        "SELECT p.id, p.source, p.text, p.content_hash, "
         "(SELECT COUNT(*) FROM media m WHERE m.post_id = p.id) AS nmedia "
         "FROM posts p WHERE p.score IS NULL ORDER BY p.id").fetchall()
     print(f"{len(rows)} unscored posts\n")
@@ -59,7 +59,12 @@ def main() -> None:
         if not media:
             chash = db.content_hash(r["text"])
             if chash:
-                db.set_content_hash(r["id"], chash)
+                # Only write a hash that changed. This pass revisits every
+                # unscored post daily; rewriting ~56,000 identical hashes, one
+                # write transaction each, made it run 40-80 minutes and die on
+                # the first long lock held by another job (2026-11-18).
+                if chash != r["content_hash"]:
+                    db.set_content_hash(r["id"], chash)
                 prior = db.verdict_for_hash(chash, r["id"])
                 if prior:
                     duplicates += 1

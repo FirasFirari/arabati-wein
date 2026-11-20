@@ -9,12 +9,15 @@ failures:
 * a scheduled JOB that has not succeeded for too long -- a trigger missed while
   paused, asleep or off -- started again with `schtasks /Run` (2026-11-02: a
   54-hour pause left the daily lane three days behind and nothing noticed);
-* the owner never hearing about any of it: until 2026-11-04 every alert went
-  to `telegram.alert_chat`, which is "me", and returned without sending.
-  Alerts now use notify.send_telegram (`telegram.notify_chat_id`).
+* the owner hearing about it ONLY when this watchdog could not fix it
+  (owner's rule, 2026-11-16: "monitored and dealt with by the system"). A
+  restart or a catch-up that works is logged, not announced. One Telegram
+  goes out when a service has stayed unhealthy through PERSISTENT_CYCLES
+  restarts, or a job is still stale after GIVE_UP_AFTER catch-up attempts.
 
-Every cycle also pings the dead-man checks (carhunt/deadman.py), so a PC that
-is off, asleep or fully paused is reported from OUTSIDE, by Healthchecks.io.
+Every cycle also pings the dead-man checks (carhunt/deadman.py). Those are a
+silent dashboard except `carhunt-alive`, which messages the owner when the PC
+has been unreachable for 48 h while not paused (carhunt/hc.py holds that rule).
 
 Usage:
     python -m carhunt.watchdog          # one check
@@ -44,13 +47,16 @@ JOBS = {
     "raw_sweep": ("CarHunt Raw Sweep", 3),
     "photo_ocr": ("CarHunt Photo OCR", 6),
     "clarity": ("CarHunt Clarity Snapshot", 30),
+    "gsc": ("CarHunt Search Console", 30),
     "backup": ("CarHunt Backup", 30),
 }
 CATCHUP_STATE = health.HEALTH_DIR / "catchup.json"
 CATCHUP_RETRY_HOURS = 2
+GIVE_UP_AFTER = 3          # failed catch-up attempts before the owner is told
+PERSISTENT_CYCLES = 6      # consecutive unhealthy cycles (30 min) before the owner is told
 LIGHT_PAUSE_REMIND_HOURS = 12
 
-_unhealthy_last_cycle: set[str] = set()
+_unhealthy_streak: dict[str, int] = {}
 
 
 def log(message: str) -> None:
@@ -133,7 +139,8 @@ def catch_up(now: float | None = None, run=None) -> list[str]:
 
     A job that has never written a stamp is left alone (no evidence either
     way). A disabled task makes `schtasks /Run` fail, which is correct: paused
-    means paused. One attempt per job per CATCHUP_RETRY_HOURS.
+    means paused. One attempt per job per CATCHUP_RETRY_HOURS. Attempts are
+    counted in the state file; given_up() reads the count.
     """
     if paused():
         return []
@@ -141,21 +148,40 @@ def catch_up(now: float | None = None, run=None) -> list[str]:
     run = run or (lambda task: subprocess.run(["schtasks", "/Run", "/TN", task],
                                               capture_output=True).returncode)
     state = _load_state()
-    started = []
+    started, dirty = [], False
     for job, (task, max_hours) in JOBS.items():
         age = health.job_age_seconds(job)
         if age is None or age < max_hours * 3600:
+            # healthy again: forget the failed attempts
+            for k in (f"_tries_{job}", f"_gave_up_{job}"):
+                dirty = (state.pop(k, None) is not None) or dirty
             continue
         if now - state.get(job, 0) < CATCHUP_RETRY_HOURS * 3600:
             continue
         rc = run(task)
         state[job] = now
+        state[f"_tries_{job}"] = state.get(f"_tries_{job}", 0) + 1
         log(f"catch-up: {job} last succeeded {age / 3600:.1f} h ago — "
-            f"started {task!r} (schtasks exit {rc})")
+            f"started {task!r} (schtasks exit {rc}, attempt {state[f'_tries_{job}']})")
         started.append(job)
-    if started:
+    if started or dirty:
         _save_state(state)
     return started
+
+
+def given_up() -> list[str]:
+    """Jobs still stale after GIVE_UP_AFTER catch-ups, reported ONCE each.
+
+    The count passes the limit only when a further attempt was needed, so a
+    third attempt that works is never reported. Catch-up keeps retrying.
+    """
+    state = _load_state()
+    out = [job for job in JOBS
+           if state.get(f"_tries_{job}", 0) > GIVE_UP_AFTER and not state.get(f"_gave_up_{job}")]
+    if out:
+        state.update({f"_gave_up_{job}": True for job in out})
+        _save_state(state)
+    return out
 
 
 def remind_light_pause(now: float | None = None) -> bool:
@@ -178,34 +204,32 @@ def remind_light_pause(now: float | None = None) -> bool:
 
 def check_once(alerts: bool = True) -> list[str]:
     """One watchdog cycle. Returns the services found unhealthy."""
-    global _unhealthy_last_cycle
+    global _unhealthy_streak
     if paused():
         log("paused (data/PAUSED) — nothing checked")
         return []
     deadman.ping("carhunt-alive")
     unhealthy = check_services()
-    if unhealthy and alerts:
-        # once per service per hour: a network outage restarts the Telegram
-        # services every cycle, and a message every 5 minutes is noise
-        # (2026-11-05: a 30-minute outage). A persistent failure is reported
-        # by the dead-man `services` check below.
-        state, now = _load_state(), time.time()
-        fresh = [s for s in unhealthy if now - state.get(f"_alerted_{s}", 0) > 3600]
-        if fresh:
-            alert("⚠️ CarHunt watchdog restarted: " + ", ".join(fresh))
-            state.update({f"_alerted_{s}": now for s in fresh})
-            _save_state(state)
+    # A restart that works is not news: network outages restart the Telegram
+    # services for half an hour and clear by themselves (2026-11-05). The
+    # owner hears once, when a service has stayed unhealthy through
+    # PERSISTENT_CYCLES restarts in a row.
+    _unhealthy_streak = {s: _unhealthy_streak.get(s, 0) + 1 for s in unhealthy}
+    stuck = sorted(s for s, n in _unhealthy_streak.items() if n == PERSISTENT_CYCLES)
+    if stuck and alerts:
+        alert("⚠️ CarHunt: still unhealthy after " + str(PERSISTENT_CYCLES)
+              + " restarts, needs a look: " + ", ".join(stuck))
     # a service still unhealthy after a restart is broken, not hiccuping
-    persistent = sorted(set(unhealthy) & _unhealthy_last_cycle)
+    persistent = sorted(s for s, n in _unhealthy_streak.items() if n >= 2)
     if persistent:
         deadman.ping("services", False, "unhealthy after restart: " + ", ".join(persistent))
     elif not unhealthy:
         deadman.ping("services")
-    _unhealthy_last_cycle = set(unhealthy)
-    started = catch_up()
-    if started and alerts:
-        alert("🔁 CarHunt catch-up: started " + ", ".join(started)
-              + " (no successful run for too long — missed while paused, asleep or off?)")
+    catch_up()
+    lost = given_up()
+    if lost and alerts:
+        alert("⚠️ CarHunt: " + ", ".join(lost) + " still has no successful run after "
+              + str(GIVE_UP_AFTER) + " catch-up attempts, needs a look (data\\logs).")
     remind_light_pause()
     return unhealthy
 

@@ -88,3 +88,39 @@ def test_parity_on_real_registry_values(ro_db):
     got = js(values)
     bad = sum(1 for v, j in zip(values, got) if j[:4] != py(v)[:4])
     assert bad == 0, f"{bad} of {len(values)} stored values normalise differently in JS"
+
+
+# --- model names: the page's modelKeysIn against carhunt.aliases -------------
+MODEL_CORPUS = [
+    "", "كورولا 2015 ابيض", "كورلا2007", "الكورولا", "والكوريلا البيضاء", "بالهايلوكس",
+    "اكسنت مضلع ابيض", "افانتي سلفر مضلعة", "مضلع ابيض", "بوكسي تايوتا مضلع", "تيريوس 000183", "Daihatsu Terios",
+    "رينو دستر فيراني", "اي توينتي فيراني", "الفيراني", "دفاررقم الشاسي", "دفارات", "النتراء",
+    "i10ابيض", "عربه i20رقم الشاسي", "i100", "hi10", "RAV4", "rav45", "كوريلااوكامري",
+    "حافلة شريحة", "ركشه سوداء بأصفر", "كيا اوبتيما جربوكس فل", "صنعت في مصنع",
+    "from dense roster (bushara khair)", "trucks and pickups", "Kia Rio", "Suzuki Celerio",
+    "هونداي جياد ابيض اكسنت", "بوكس هايلوكس دبل", "دقو وراء", "شريحة هايس", "بي واي دي ابيض جياد",
+    "لاند كروزر", "landcruiser prado", "سنتافي او توسان", "كلك", "كلكم", "مورنينق شاي لبن",
+    "ابيض", "سوداء", "CERATOفيراني", "santa fe 2010", "كرلا", "كريلا ٢٠١٥",
+    "دفار ميتسوبيشي", "امجاد داماس", "جياد", "اكسنت حرجلي", "حرجلي", "كريز", "كريسيدا",
+    "قرش ابيض", "مورنق", "اتوس", "برادو", "صالون تايوتا", "اکسنت", "کیا ریو", "اي توينتي",
+    "سيارات", "كاميرا", "تيريوس", "سوني", "استايركس", "جلي", "سانتا", "فرياني",
+]
+
+
+def test_model_keys_match_between_page_and_python():
+    """Same keys from both, for every input (the page returns a set)."""
+    from carhunt.aliases import ALIASES, SKELETON_STOP, model_keys_in
+    start = TEMPLATE.index("const AR_DIGITS")
+    end = TEMPLATE.index("// end modelKeysIn")
+    src = ("const ALIASES = " + json.dumps(ALIASES, ensure_ascii=False) + ";\n"
+           "const SKEL_STOP = " + json.dumps(sorted(SKELETON_STOP), ensure_ascii=False) + ";\n"
+           + TEMPLATE[start:end] + """
+const inputs = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+process.stdout.write(JSON.stringify(inputs.map(s => [...modelKeysIn(s)].sort())));
+""")
+    out = subprocess.run([NODE, "-e", src], input=json.dumps(MODEL_CORPUS),
+                         capture_output=True, text=True, encoding="utf-8", check=True)
+    got = json.loads(out.stdout)
+    diffs = [(t, j, sorted(model_keys_in(t))) for t, j in zip(MODEL_CORPUS, got)
+             if j != sorted(model_keys_in(t))]
+    assert not diffs

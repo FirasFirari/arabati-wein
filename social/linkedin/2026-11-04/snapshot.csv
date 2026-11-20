@@ -1,0 +1,11 @@
+metric,value,label
+posts_collected,184317,Public posts collected
+distinct_chassis,86221,Distinct chassis numbers
+identified_vehicles,101587,Identified vehicles (chassis or plate)
+photos_transcribed,57894,Photos read by OCR
+photos_collected,239631,Photos collected
+posts_unprocessed,129313,Posts still waiting to be read
+standing_watches,105,Standing watches
+leads_relayed,2,Verified leads relayed to families
+recoveries_confirmed,0,Recoveries confirmed by owners
+groups_joined,18,Facebook groups the Page has joined

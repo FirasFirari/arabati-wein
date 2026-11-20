@@ -46,6 +46,7 @@ def _cut(name: str) -> str:
 
 STUBS = """
 const ALIASES = {};
+const SKEL_STOP = [];
 const t = (k, a) => a;
 """
 
@@ -95,3 +96,28 @@ def test_search_cli_uses_the_same_rule():
         v = {"chassis_norm": norm_chassis(cn) if cn else None, "plate_norm": pn}
         got = score_vehicle(query, v)[0] > 0
         assert got == want, label
+
+
+# (label, query, stored chassis_norm, stored plate_norm, offer the watch beside results?)
+FRAGMENT_CASES = [
+    ("full VIN finds only a list's 6-digit tail", "XXXDF4EV7FJ016434", "016434", None, True),
+    ("full VIN finds its own full chassis", "XXXDF4EV7FJ016434", "XXXDF4EV7FJ016434", None, False),
+    ("short query inside a longer stored chassis", "016434", "XXXDF4EV7FJ016434", None, False),
+    ("exact short number", "016434", "016434", None, False),
+    ("plate typed with region marker", "52731 خ 3", None, "52731", False),
+]
+
+
+def test_fragment_only_results_still_offer_the_watch():
+    """2026-11-05: a registrant's full VIN found only someone else's 6-digit
+    tail, so the page showed that car and hid the watch form. dscoreAt's
+    `part` flag is what render() uses to offer the form beside such results."""
+    src = (STUBS + TEMPLATE[TEMPLATE.index("const AR_DIGITS"):TEMPLATE.index("const STATUS_AR")]
+           + _cut("queryCtx") + _cut("dscoreAt")
+           + HARNESS.replace("return !!(r && r.reasons.some(x => x.includes('شاسي') || x.includes('لوحة')));",
+                             "return !!(r && r.part);"))
+    out = subprocess.run([NODE, "-e", src], input=json.dumps([c[1:4] for c in FRAGMENT_CASES]),
+                         capture_output=True, text=True, encoding="utf-8", check=True)
+    got = json.loads(out.stdout)
+    wrong = [f"{c[0]}: part={g} want={c[4]}" for c, g in zip(FRAGMENT_CASES, got) if g != c[4]]
+    assert not wrong, "\n".join(wrong)

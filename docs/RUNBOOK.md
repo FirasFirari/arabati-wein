@@ -37,6 +37,7 @@ Credentials live in `config.yaml` or the environment, never in code:
 | Daily Free Lane | 12:00, retried hourly to 22:00 | `scripts\daily_free_lane.py` | `data/logs/daily_free_lane.log` |
 | Backup | 13:00, retried hourly to 23:00 | `scripts\backup_db.py` | `data/logs/backup.log` |
 | Clarity Snapshot | 21:00 | `scripts\clarity_export.py --days 1 --save data\clarity` | — |
+| Search Console | 21:10 | `scripts\gsc_export.py --save --quiet`: 28-day snapshot to `data\gsc`, index check of every sitemap URL, Telegram alert on any change | — |
 
 Plus, on Netlify (runs with the PC off): `site/functions/submission-created.js`
 announces each new watch registration on Telegram.
@@ -46,13 +47,18 @@ announces each new watch registration on Telegram.
 hold code in memory: restart them after a code or config change.
 
 **When something stops happening, you hear about it:**
-* the watchdog restarts a stuck service and says so on Telegram
-  (`telegram.notify_chat_id`);
+* the watchdog restarts a stuck service silently; it sends one Telegram
+  (`telegram.notify_chat_id`) only when the service is still unhealthy after
+  6 restarts in a row (30 minutes);
 * a scheduled job that has not *succeeded* for too long (stamps in
-  `data/health/job_*.json`) is started again by the watchdog within 5 minutes;
-* Healthchecks.io (`healthchecks.ping_key`) alerts when pings stop arriving:
-  `carhunt-alive` DOWN means the PC is off, asleep or fully paused; any other
-  check DOWN or failed means that job is broken.
+  `data/health/job_*.json`) is started again by the watchdog within 5 minutes,
+  silently; one Telegram goes out if it is still stale after 3 attempts;
+* Healthchecks.io is a silent dashboard (`python -m carhunt.hc status`). Only
+  `carhunt-alive` notifies, on Telegram, after 48 hours without a ping while
+  not paused: the PC is off or asleep. Pause silences every check it stops
+  (`carhunt.hc pause`); they wake on the first ping after Resume.
+  `python -m carhunt.hc policy` reapplies this rule and creates missing checks
+  (needs `healthchecks.api_key`).
 * `data/logs/db_locks.log` names any process that held the database write lock
   for over a second.
 
@@ -62,10 +68,21 @@ hold code in memory: restart them after a code or config change.
 
 1. `python -m carhunt.free_pass` — deterministic settles
 2. `scripts\kashf_verdicts.py` + `scripts\ingest_local_verdicts.py --tier kashf_parser` — the كشف lists
-3. `scripts\openai_backlog.py --provider gemini --use-ocr ...` for each of the two
+3. `scripts\prose_verdicts.py` + `scripts\ingest_local_verdicts.py --tier prose_parser`:
+   text posts with a labelled chassis or plate, read by rule (`carhunt/prose.py`).
+   Runs only when `config.yaml` has `prose_lane: {enabled: true}`; `max_posts`
+   caps one run (default 3000). A post with any number the rules cannot explain,
+   or with no identifier at all, is left for step 4.
+4. `scripts\openai_backlog.py --provider gemini --use-ocr ...` for each of the two
    Flash-Lite models (their own free daily quotas), then `--replay-spool` for any
    save that failed
-4. RECONCILE (claimed vehicles vs stored rows) and the raw sweep with `--db-scan`
+5. RECONCILE (claimed vehicles vs stored rows) and the raw sweep with `--db-scan`
+
+After any change to `carhunt/prose.py`, re-measure before it runs again:
+`scripts\prose_benchmark.py` (recall against posts a model already read),
+`scripts\prose_benchmark.py --holdout`, and `scripts\prose_audit.py` (needs no
+answer key: grounding, phone and year shapes, known contact numbers). All three
+are read-only.
 
 Photos are read by the separate Photo OCR task (`gemini_ocr_sweep.py`): each
 distinct image once (files are hashed; copies get the text at zero calls), a
@@ -143,6 +160,21 @@ Verified 2026-11-05: an offsite copy decrypted, matched its MANIFEST sha256 and
 held an intact database.
 
 ## Repairs
+
+**Model names (`carhunt/aliases.py`).** A row's model key is computed once, at
+ingest, so a change to the alias table does not reach stored rows by itself:
+
+    git show HEAD:carhunt/aliases.py > old_aliases.py     # the rules being replaced
+    python scripts\rederive_model_keys.py --old-rules old_aliases.py           # dry run
+    python scripts\rederive_model_keys.py --old-rules old_aliases.py --apply   # writes an undo file first
+    python scripts\rederive_model_keys.py --undo data\alias_rederive_<stamp>.jsonl
+
+Then run `python scripts\alias_audit.py` and read section (a2): every model added
+to the table brings look-alike words through the fuzzy match (a Kia Pride read
+as a Prado, "petrol" as a Patrol). Add the false ones to `SKELETON_STOP`. Get the
+tests green before `--apply`, and check that nothing is left with the DRY run,
+never with a second `--apply`. The page's search code mirrors the matching rules;
+`tests/test_js_parity.py` fails if the two drift.
 
 `python scripts\regate_registry.py` (dry run) / `--apply` brings rows already in
 the registry up to the current rules: chassis_norm recomputed, doubt flags added

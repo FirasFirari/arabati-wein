@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Arabati Wein Statistics</title>
 <meta name="description" content="Live statistics of the Arabati Wein registry of vehicles looted or lost in the Sudan war: distinct chassis numbers, identified vehicles, standing watches, leads relayed and confirmed recoveries.">
 <meta name="robots" content="index,follow">
@@ -26,6 +27,12 @@
 :root { --bg:#f4f6fa; --paper:#fff; --fg:#182236; --muted:#5b6579; --line:#d6dbe6; --ink:#1d3f8a; --ochre:#b0761a; }
 @media (prefers-color-scheme: dark) { :root { --bg:#111827; --paper:#182135; --fg:#e8ecf4; --muted:#a2acbf; --line:#2b3650; --ink:#8fb0f2; --ochre:#e0ad55; color-scheme: dark; } }
 * { box-sizing: border-box; }
+/* phone hardening */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-wrap: break-word; }
+a, code { overflow-wrap: anywhere; }
+img, svg { max-width: 100%; height: auto; }
+nav a { display: inline-block; padding-block: 6px; }
 body { margin:0; background:var(--bg); color:var(--fg); font: 16px/1.6 "IBM Plex Sans","IBM Plex Sans Arabic",system-ui,sans-serif; }
 .wrap { max-width: 720px; margin: 0 auto; padding: 40px max(16px, env(safe-area-inset-right,0px)) 64px max(16px, env(safe-area-inset-left,0px)); }
 h1 { font-size: 2rem; margin: 0 0 6px; line-height: 1.15; }
@@ -42,31 +49,32 @@ td.num { font: 1.15rem "IBM Plex Mono", monospace; font-variant-numeric: tabular
 .muted { color: var(--muted); font-size: .9rem; }
 footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
 </style>
+__CLARITY__
 </head>
 <body>
 <div class="wrap">
   <div class="eyebrow">Arabati Wein · عربتي وين؟ · statistics</div>
   <h1>What the registry holds today</h1>
-  <p class="muted">Measured from the database on <strong>2026-10-28</strong>. Posts collected from <strong>2026-08-22</strong> to <strong>2026-10-28</strong>; last extraction run <strong>2026-10-28</strong>. Machine-readable copy: <a href="/stats.json">stats.json</a>.</p>
+  <p class="muted">Measured from the database on <strong>2026-11-12</strong>. Posts collected from <strong>2026-08-22</strong> to <strong>2026-11-10</strong>; last extraction run <strong>2026-11-10</strong>. Machine-readable copy: <a href="/stats.json">stats.json</a>.</p>
   <nav><a href="/">Registry</a><a href="/support.html">Support the project</a><a href="/privacy.html">Privacy</a></nav>
 
   <table>
     <tbody>
-<tr><td>Distinct chassis numbers searchable<span class="ar" lang="ar" dir="rtl">أرقام شاسي مميزة قابلة للبحث</span></td><td class="num">82,276</td></tr>
-<tr><td>Identified vehicles (chassis or plate)<span class="ar" lang="ar" dir="rtl">عربات معرَّفة (شاسي أو لوحة)</span></td><td class="num">97,517</td></tr>
-<tr><td>Distinct plates<span class="ar" lang="ar" dir="rtl">لوحات مميزة</span></td><td class="num">16,717</td></tr>
-<tr><td>Posts collected<span class="ar" lang="ar" dir="rtl">منشورات مجمَّعة</span></td><td class="num">169,781</td></tr>
-<tr><td>Photos collected<span class="ar" lang="ar" dir="rtl">صور مجمَّعة</span></td><td class="num">219,152</td></tr>
-<tr><td>Photos transcribed (OCR)<span class="ar" lang="ar" dir="rtl">صور مقروءة آلياً</span></td><td class="num">53,243</td></tr>
-<tr><td>Posts awaiting processing<span class="ar" lang="ar" dir="rtl">منشورات في انتظار المعالجة</span></td><td class="num">118,305</td></tr>
-<tr><td>Standing watches<span class="ar" lang="ar" dir="rtl">أرقام مسجَّلة للمتابعة</span></td><td class="num">81</td></tr>
+<tr><td>Distinct chassis numbers searchable<span class="ar" lang="ar" dir="rtl">أرقام شاسي مميزة قابلة للبحث</span></td><td class="num">90,441</td></tr>
+<tr><td>Identified vehicles (chassis or plate)<span class="ar" lang="ar" dir="rtl">عربات معرَّفة (شاسي أو لوحة)</span></td><td class="num">106,213</td></tr>
+<tr><td>Distinct plates<span class="ar" lang="ar" dir="rtl">لوحات مميزة</span></td><td class="num">17,393</td></tr>
+<tr><td>Posts collected<span class="ar" lang="ar" dir="rtl">منشورات مجمَّعة</span></td><td class="num">199,117</td></tr>
+<tr><td>Photos collected<span class="ar" lang="ar" dir="rtl">صور مجمَّعة</span></td><td class="num">258,910</td></tr>
+<tr><td>Photos transcribed (OCR)<span class="ar" lang="ar" dir="rtl">صور مقروءة آلياً</span></td><td class="num">110,107</td></tr>
+<tr><td>Posts awaiting processing<span class="ar" lang="ar" dir="rtl">منشورات في انتظار المعالجة</span></td><td class="num">136,422</td></tr>
+<tr><td>Standing watches<span class="ar" lang="ar" dir="rtl">أرقام مسجَّلة للمتابعة</span></td><td class="num">137</td></tr>
 <tr><td>Leads relayed to owners<span class="ar" lang="ar" dir="rtl">تنبيهات سُلِّمت لأصحابها</span></td><td class="num">2</td></tr>
 <tr><td>Recoveries confirmed by owners<span class="ar" lang="ar" dir="rtl">استردادات مؤكَّدة من أصحابها</span></td><td class="num">0</td></tr>
     </tbody>
   </table>
 
   <h2>How to read these numbers</h2>
-  <p><strong>Identified vehicles</strong> counts distinct normalised chassis numbers, plus distinct plates on rows that carry no chassis. It is the honest size of the registry. The raw number of extracted sighting rows is <strong>1,131,468</strong>, far higher, because the same recovery list is reposted to many groups; we never quote it as a count of vehicles.</p>
+  <p><strong>Identified vehicles</strong> counts distinct normalised chassis numbers, plus distinct plates on rows that carry no chassis. It is the honest size of the registry. The raw number of extracted sighting rows is <strong>1,481,878</strong>, far higher, because the same recovery list is reposted to many groups; we never quote it as a count of vehicles.</p>
   <p><strong>Leads relayed</strong> are standing-watch hits that a human verified and passed to the registrant. <strong>Recoveries confirmed</strong> counts only cars whose owner told us the car came back after a registry lead. Both are kept by hand and will be published monthly whether or not they move.</p>
   <p><strong>Posts awaiting processing</strong> is the backlog: posts collected but not yet read for vehicle records. Intake currently outruns the free processing tier, which is the second item on the <a href="/support.html">funding ladder</a>.</p>
 

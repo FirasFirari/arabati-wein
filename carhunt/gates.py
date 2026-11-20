@@ -35,8 +35,17 @@ _DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890
 UNCHECKED_PHOTO = "read from a photo not yet OCR-checked"
 
 
+# Zero-width and direction marks. Phones paste them INSIDE numbers
+# ("340<LRM>86"), where nobody can see them: the reader sees one number, and
+# until 2026-11-20 the gate saw two and nulled the value as "not in the post"
+# (measured: 226 correct identifiers in one backlog pass). They carry no
+# meaning and never separate two numbers a person would read as separate.
+_INVISIBLE = re.compile("[​-‏‪-‮⁠-⁩﻿]")
+
+
 def _fold(text) -> str:
-    return unicodedata.normalize("NFKC", str(text or "")).translate(_DIGITS)
+    t = unicodedata.normalize("NFKC", str(text or "")).translate(_DIGITS)
+    return _INVISIBLE.sub("", t)
 
 
 def source_runs(text: str) -> set[str]:

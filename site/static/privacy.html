@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Arabati Wein Privacy</title>
 <meta name="description" content="What the Arabati Wein registry of vehicles lost in the Sudan war collects, what it publishes, what it never publishes, how search queries are recorded, and how to ask for a correction or removal.">
 <meta name="robots" content="index,follow">
@@ -25,6 +26,12 @@
 :root { --bg:#f4f6fa; --paper:#fff; --fg:#182236; --muted:#5b6579; --line:#d6dbe6; --ink:#1d3f8a; --ochre:#b0761a; --ochre-soft:#f6ecd8; }
 @media (prefers-color-scheme: dark) { :root { --bg:#111827; --paper:#182135; --fg:#e8ecf4; --muted:#a2acbf; --line:#2b3650; --ink:#8fb0f2; --ochre:#e0ad55; --ochre-soft:#3a2f18; color-scheme: dark; } }
 * { box-sizing: border-box; }
+/* phone hardening */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-wrap: break-word; }
+a, code { overflow-wrap: anywhere; }
+img, svg { max-width: 100%; height: auto; }
+nav a { display: inline-block; padding-block: 6px; }
 body { margin:0; background:var(--bg); color:var(--fg); font: 16px/1.65 "IBM Plex Sans","IBM Plex Sans Arabic",system-ui,sans-serif; }
 .wrap { max-width: 720px; margin: 0 auto; padding: 40px max(16px, env(safe-area-inset-right,0px)) 64px max(16px, env(safe-area-inset-left,0px)); }
 h1 { font-size: 2rem; margin: 0 0 6px; line-height: 1.15; } h2 { font-size: 1.3rem; margin: 36px 0 10px; }
@@ -40,6 +47,7 @@ th { font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; color: 
 footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
 code { user-select: all; }
 </style>
+__CLARITY__
 </head>
 <body>
 <div class="wrap">

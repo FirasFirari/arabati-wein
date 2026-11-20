@@ -33,6 +33,14 @@ Regenerate both with `python scripts\make_brand_assets.py`.
    N earlier posts; see them all; document and go to Traffic; never pay"). One comment per
    group per day, never the same wording twice, never under a scam-funnel post (they report
    the Page).
+   **Read the group's rules (`/groups/<id>/about`) before the first comment there.** Groups
+   that ban links or promotion get a LINK-FREE comment (the Page name is the exposure): the
+   128K group (6326254187471594) auto-declines any comment with a link (keyword filter; fix =
+   Edit the comment, drop the link, resubmit), the 216K group (6254926201235451) bans
+   "promotional ads". فتش لي (1485185051516519) and شرق الجزيرة (996450738294918) have
+   commenting turned off on every post. Quote counts from the LIVE site (`/?q=<n>` card:
+   "N رصدات"), not the DB, and don't claim every report has a link (about 37% have none).
+   Pace: no more than ~8 link comments a day from the Page across all groups.
 7. **Log everything** in `social/facebook_page_log.md`: date, where, slug, result.
 
 ## Weekly routine (15 minutes)
@@ -40,7 +48,7 @@ Regenerate both with `python scripts\make_brand_assets.py`.
 - `python scripts\page_stats_post.py` → paste as a Page post (body) + first comment (link).
 - Share one of the week's Page posts into 1–2 groups from the personal profile with a fresh
   one-line opener.
-- Read results: `python scripts\clarity_export.py --days 7 --dimensions Source Campaign`
+- Read results: `python scripts\clarity_export.py --days 3 --dimensions Source Campaign` (the API serves 3 days at most)
   → sessions with `Source=facebook` and `Campaign=page*` / `g*`.
 - Reply to every comment on the Page within a day. Anyone asking "where is my car" gets the
   four lines: search on the site, register a watch, file at sudanpolice.net, never pay.

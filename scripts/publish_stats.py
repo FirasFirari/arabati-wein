@@ -67,7 +67,9 @@ def compute() -> dict:
     }
     conn.close()
     watches = [w for w in watchlib.load_watches() if "TEST" not in w["identifier"].upper()]
-    stats["standing_watches"] = len(watches)
+    # Vehicles, not form rows: resubmissions and VIN-plus-short-number pairs
+    # are one car (carhunt.watches.distinct_vehicles).
+    stats["standing_watches"] = watchlib.distinct_vehicles(watches)
     imp = impact()
     stats["leads_relayed"] = int(imp.get("leads_relayed", 0))
     stats["recoveries_confirmed"] = int(imp.get("recoveries_confirmed", 0))

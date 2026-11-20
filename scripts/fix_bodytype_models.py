@@ -13,6 +13,10 @@ observed spelling (Arabic or Persian kaf, with or without hamza) is left alone.
 
 Usage:
     python scripts/fix_bodytype_models.py [--dry-run]
+
+SUPERSEDED 2026-11-20. The owner ruled that standalone مضلع IS a Hyundai
+Accent, the reading this script was written to undo. It now refuses to run;
+scripts/fix_mudalla_accent.py applies the current rule.
 """
 import argparse
 import pathlib
@@ -39,6 +43,8 @@ MAKE_WORDS = {"كيا": "Kia", "تويوتا": "Toyota", "تايوتا": "Toyota
 
 
 def main() -> None:
+    raise SystemExit("superseded 2026-11-20: standalone مضلع is a Hyundai Accent; "
+                     "see scripts/fix_mudalla_accent.py")
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()

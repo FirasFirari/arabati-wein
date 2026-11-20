@@ -35,14 +35,14 @@ $LightFlag = Join-Path $Root "data\PAUSED_LIGHT"
 # The always-on services started at logon, and the periodic jobs.
 $Services = "CarHunt Watchdog", "CarHunt Dashboard", "CarHunt Facebook Service",
             "CarHunt Intake Bot", "CarHunt Channel Monitor"
-$Periodic = "CarHunt Raw Sweep", "CarHunt Daily Free Lane", "CarHunt Clarity Snapshot", "CarHunt Photo OCR",
+$Periodic = "CarHunt Raw Sweep", "CarHunt Daily Free Lane", "CarHunt Clarity Snapshot", "CarHunt Search Console", "CarHunt Photo OCR",
             "CarHunt Backup"
 $Heavy = "CarHunt Facebook Service", "CarHunt Daily Free Lane", "CarHunt Photo OCR"
 
 # Matched on command line, deliberately narrow: the terminal Claude Code runs
 # in also mentions "Car Hunt" and must never be killed.
 $PyScripts = "openai_backlog|raw_sweep|daily_free_lane|kashf_verdicts|" +
-             "ingest_local_verdicts|fetch_watches|clarity_export|gemini_ocr_sweep|" +
+             "ingest_local_verdicts|fetch_watches|clarity_export|gsc_export|gemini_ocr_sweep|" +
              "backup_db"
 
 function Get-CarHuntProcs([switch]$HeavyOnly) {
@@ -124,7 +124,14 @@ switch ($Action) {
         $after = (@(Get-CarHuntProcs) | Measure-Object WorkingSetSize -Sum).Sum / 1MB
         Write-Host ("Paused. Freed about {0:N0} MB." -f ($before - $after)) -ForegroundColor Yellow
         $kind = if ($Light) { "LIGHT (collector + scoring stopped)" } else { "EVERYTHING" }
-        Send-Note ("Car Hunt PAUSED ($kind) at {0:HH:mm}. Dead-man alerts will fire until you Resume." -f (Get-Date))
+        # Silence the Healthchecks checks this pause turns DOWN: a pause the
+        # owner chose is not an incident. They wake on the first ping after Resume.
+        try {
+            Push-Location $Root
+            if ($Light) { & python -m carhunt.hc pause --light | Out-Null }
+            else { & python -m carhunt.hc pause | Out-Null }
+        } catch { } finally { Pop-Location }
+        Send-Note ("Car Hunt PAUSED ($kind) at {0:HH:mm}. Dead-man checks are silenced until you Resume." -f (Get-Date))
         Write-Host "Nothing will restart (not even after a reboot) until you run Resume."
         Write-Host ""
         Show-Status

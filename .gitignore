@@ -65,3 +65,6 @@ site/static/indexnow-key.txt
 
 # generated LinkedIn slide decks (the text and generator are tracked)
 social/linkedin/**/*.pdf
+
+# the exported open-data map is a published figure, not collected media
+!open-data/map/*.png

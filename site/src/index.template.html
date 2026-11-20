@@ -8,7 +8,12 @@
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta name="google-site-verification" content="-_wy_1e6CPT7JvsiJkBIEX4TUqWspxFAKwfRiZVmgMk">
 <meta http-equiv="content-language" content="ar">
-<meta name="theme-color" content="#146C7C">
+<!-- The page has its own dark palette. Saying so stops Chrome's and Samsung
+     Internet's forced dark mode from inverting it a second time, and gives
+     native controls (selects, checkboxes, the search box) the matching theme. -->
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#146C7C" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131A20" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="https://mycarsd.online/">
 <link rel="alternate" hreflang="ar" href="https://mycarsd.online/">
 <link rel="alternate" hreflang="en" href="https://mycarsd.online/en.html">
@@ -40,9 +45,11 @@
   --accent: #146C7C; --accent-ink: #FFFFFF; --line: #E3DCCC;
   --match: #1D7A46; --match-bg: #E4F2E9; --mid-bg: #FBEEDA; --mid: #8A5A18;
   --danger: #A33B2E; --danger-bg: #F7E5E0;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #131A20; --surface: #1C2630; --ink: #E8E4DA; --muted: #93A0A8;
     --accent: #4FB3C5; --accent-ink: #0E1418; --line: #2C3945;
     --match: #6FCF97; --match-bg: #1C3327; --mid-bg: #3A2E17; --mid: #E3B36A;
@@ -50,93 +57,146 @@
   }
 }
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #131A20; --surface: #1C2630; --ink: #E8E4DA; --muted: #93A0A8;
   --accent: #4FB3C5; --accent-ink: #0E1418; --line: #2C3945;
   --match: #6FCF97; --match-bg: #1C3327; --mid-bg: #3A2E17; --mid: #E3B36A;
   --danger: #E38A76; --danger-bg: #3A231D;
 }
 * { box-sizing: border-box; }
+/* Phones: no font inflation in landscape (iOS), and no word, URL or chassis
+   number may ever be wider than the screen. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-  line-height: 1.65;
+  line-height: 1.65; overflow-wrap: break-word;
+  -webkit-tap-highlight-color: rgba(20, 108, 124, .12);
 }
+img, svg { max-width: 100%; height: auto; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 60px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 4px 12px; }
 header h1 {
   font-family: Amiri, "IBM Plex Sans Arabic", serif;
-  font-size: 2.6rem; margin: 0; text-wrap: balance; color: var(--accent);
+  font-size: clamp(2.1rem, 9vw, 2.6rem); line-height: 1.3; margin: 0;
+  text-wrap: balance; color: var(--accent); flex: 1 1 auto; min-width: 0;
 }
-header p.sub { margin: 4px 0 0; color: var(--muted); font-size: .95rem; }
+header p.sub { margin: 4px 0 0; color: var(--muted); font-size: .95rem; flex: 1 1 100%; }
+/* The English line is a translation under the Arabic, not a run-on of it. */
+header p.sub span[dir="ltr"] { display: block; margin-top: 2px; font-size: .88rem; text-align: right; }
 .searchbox { margin: 20px 0 8px; }
 /* .ask and .hint are <label for="q">: tapping the prompt focuses the box. */
 .ask { display: block; margin: 0 0 8px; font-size: 1.06rem; font-weight: 600; color: var(--ink); }
-.ask span { font-weight: 400; color: var(--muted); font-size: .92rem; }
+.ask span { display: block; font-weight: 400; color: var(--muted); font-size: .88rem; text-align: right; }
+.wrap[dir="ltr"] .ask span, .wrap[dir="ltr"] header p.sub span[dir="ltr"] { text-align: left; }
 details.filterwrap > summary {
-  cursor: pointer; color: var(--accent); font-size: .9rem; margin: 10px 0 4px;
-  list-style-position: inside;
+  cursor: pointer; color: var(--accent); font-size: .95rem; margin: 10px 0 4px;
+  list-style-position: inside; padding: 6px 0; display: list-item;
 }
 /* The stats are context, not the product — they sit under the search now and
    are sized accordingly. */
 .coverage { margin-top: 22px; opacity: .92; }
-.searchbox input {
-  width: 100%; padding: 14px 18px; font-size: 1.15rem; border-radius: 10px;
+/* appearance:none — iOS otherwise draws its own rounded, inset search field
+   and ignores the border and radius. */
+.searchbox #q {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; min-height: 54px; padding: 12px 16px; font-size: 1.15rem; border-radius: 12px;
   border: 2px solid var(--accent); background: var(--surface); color: var(--ink);
   font-family: inherit; direction: rtl;
 }
-.searchbox input:focus { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.searchbox #q:focus { outline: 3px solid rgba(20, 108, 124, .35); outline-offset: 1px; }
+.wrap[dir="ltr"] .searchbox #q { direction: ltr; }
 .hint { display: block; color: var(--muted); font-size: .85rem; margin: 8px 2px 0; }
+/* Advanced search. A grid, not a wrapping row: a row let every select take the
+   width of its longest option, so on a phone they came out ragged and the
+   location list ran off the screen. Controls are 16px text — anything smaller
+   makes iPhone Safari zoom the whole page in on tap and leave it zoomed. */
 .filters {
-  display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 2px;
-  align-items: center;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px; margin: 12px 0 2px; align-items: center;
 }
 .filters select, .filters input[type="number"] {
-  font-family: inherit; font-size: .9rem; padding: 7px 10px;
-  border-radius: 8px; border: 1px solid var(--line);
-  background: var(--surface); color: var(--ink);
+  width: 100%; min-width: 0; min-height: 44px;
+  font-family: inherit; font-size: 1rem; padding: 8px 12px;
+  border-radius: 10px; border: 1px solid var(--line);
+  background-color: var(--surface); color: var(--ink);
 }
+.filters select {
+  -webkit-appearance: none; appearance: none; text-overflow: ellipsis;
+  padding-inline-end: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238A949B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: left 12px center;
+}
+.wrap[dir="ltr"] .filters select { background-position: right 12px center; }
 .filters label {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: .88rem; color: var(--muted);
+  display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0;
+  font-size: .92rem; color: var(--muted); cursor: pointer; line-height: 1.35;
 }
-.filters .yearpair { display: inline-flex; align-items: center; gap: 4px; }
-.filters .yearpair input { width: 5.2rem; }
+input[type="checkbox"] { accent-color: var(--accent); width: 20px; height: 20px; flex: 0 0 auto; margin: 0; }
+.filters .yearpair { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.filters #f-sort { grid-column: 1 / -1; }
 .filters button {
-  font-family: inherit; font-size: .88rem; padding: 7px 14px;
-  border-radius: 8px; border: 1px solid var(--line);
+  font-family: inherit; font-size: .95rem; min-height: 44px; padding: 8px 14px;
+  border-radius: 10px; border: 1px solid var(--line);
   background: transparent; color: var(--accent); cursor: pointer;
 }
 .filters button:hover { border-color: var(--accent); }
-.coverage {
-  display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0;
-  min-height: 82px;
+@media (min-width: 640px) {
+  .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .filters .yearpair, .filters #f-sort { grid-column: span 2; }
 }
-#results { min-height: 60vh; }
+/* Five tiles: on a phone the registry size leads across the full width and the
+   other four sit in a 2x2 grid, instead of 2+2 with one tile stranded alone.
+   min-height reserves that space before the tiles render (no layout jump). */
+.coverage {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px; margin: 18px 0 0; min-height: 230px; align-content: start;
+}
+.coverage .stat:first-child { grid-column: 1 / -1; }
+.wrap.searching .coverage, .wrap.searching details.sources { display: none; }
+.coverage .stat:first-child .n { font-size: 1.85rem; }
+@media (min-width: 640px) {
+  .coverage { grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 152px; }
+}
+/* Space held for the list while the registry downloads (no layout jump when
+   it lands). Only while empty: under two results it left a screen of blank. */
+#results:empty { min-height: 60vh; }
+/* Year fields: no desktop spinner arrows. */
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .coverage .stat {
-  flex: 1 1 8.5rem; background: var(--surface); border: 1px solid var(--line);
-  border-radius: 10px; padding: 10px 14px;
+  min-width: 0; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px 14px;
 }
 .coverage .n {
   font-size: 1.5rem; font-weight: 700; color: var(--accent);
-  font-variant-numeric: tabular-nums; line-height: 1.15;
+  font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere;
 }
-.coverage .lbl { font-size: .8rem; color: var(--muted); }
+.coverage .lbl { font-size: .82rem; color: var(--muted); line-height: 1.4; }
+/* Very narrow (a small phone with enlarged system text): one column. */
+@media (max-width: 339px) {
+  .coverage, .filters { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+}
 details.sources {
-  margin-top: 10px; border: 1px solid var(--line); border-radius: 10px;
+  margin-top: 10px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--surface); padding: 10px 14px;
 }
 details.sources summary {
   cursor: pointer; font-size: .9rem; color: var(--accent); font-weight: 500;
+  padding: 4px 0;
 }
 details.sources ul {
   list-style: none; margin: 10px 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 4px 16px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0 16px;
 }
 details.sources li {
-  display: flex; justify-content: space-between; gap: 10px;
-  font-size: .85rem; color: var(--muted); border-bottom: 1px dotted var(--line);
-  padding: 3px 0;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  min-height: 40px; font-size: .88rem; color: var(--muted);
+  border-bottom: 1px dotted var(--line); padding: 4px 0;
 }
+details.sources li > :first-child { min-width: 0; overflow-wrap: anywhere; }
 details.sources li b { color: var(--ink); font-weight: 500; }
 details.sources li span { font-variant-numeric: tabular-nums; }
 /* Clarity 2026-10-28: source names drew more dead taps than anything else on
@@ -153,8 +213,9 @@ details.sources li a:hover { text-decoration: underline; }
 .stats { color: var(--muted); font-size: .9rem; margin: 18px 2px 6px; }
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  padding: 16px 18px; margin: 12px 0;
+  padding: 16px 18px; margin: 12px 0; min-width: 0;
 }
+@media (max-width: 420px) { .card { padding: 14px 14px; } }
 .card .top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .card .veh { font-weight: 700; font-size: 1.08rem; }
 .chip {
@@ -165,9 +226,10 @@ details.sources li a:hover { text-decoration: underline; }
 .chip.warn { background: var(--mid-bg); color: var(--mid); }
 .idrow { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; }
 .idrow div { font-size: .92rem; color: var(--muted); }
+.idrow div { min-width: 0; }
 .idrow bdi {
   font-family: "IBM Plex Mono", Consolas, monospace; font-variant-numeric: tabular-nums;
-  color: var(--ink); font-size: 1rem;
+  color: var(--ink); font-size: 1rem; overflow-wrap: anywhere;
 }
 .desc { margin-top: 6px; font-size: .95rem; }
 .srcline { margin-top: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -194,49 +256,81 @@ details.sources li a:hover { text-decoration: underline; }
    against every future ingest. */
 .watch {
   margin: 18px 0; padding: 16px 18px; border-radius: 12px;
-  border: 1px solid var(--line); background: var(--card);
+  border: 2px solid var(--accent); background: var(--surface);
 }
-.watch h2 { margin: 0 0 6px; font-size: 1.05rem; font-family: inherit; color: inherit; }
-.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 420px) { .watch { padding: 14px 14px; } }
+.watch h2 { margin: 0 0 6px; font-size: 1.08rem; font-family: inherit; color: var(--ink); line-height: 1.5; }
+/* Visually hidden, still read by screen readers. Clipped in place rather
+   than pushed off-screen, so it can never widen the page. */
+.vh, .watch .hp {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
 .watch p { margin: 6px 0 12px; color: var(--muted); font-size: .92rem; line-height: 1.6; }
-.watch label { display: block; margin: 10px 0 4px; font-size: .9rem; font-weight: 600; }
+.watch p span[dir="ltr"] { display: block; margin-top: 4px; font-size: .88rem; text-align: right; }
+.watch label { display: block; margin: 12px 0 4px; font-size: .92rem; font-weight: 600; }
+.watch label > span[dir="ltr"] { display: block; font-weight: 400; font-size: .85rem; color: var(--muted); text-align: right; }
+/* 16px text: smaller makes iPhone Safari zoom the page in on focus. */
 .watch input[type=text], .watch input[type=tel] {
-  width: 100%; padding: 10px 12px; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--bg); color: var(--fg);
-  font: inherit; box-sizing: border-box;
+  -webkit-appearance: none; appearance: none;
+  width: 100%; min-height: 48px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  font: inherit; font-size: 1rem;
 }
-.watch .consent { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 4px; }
-.watch .consent input { margin-top: 3px; flex: 0 0 auto; }
-.watch .consent span { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+.watch input[type=text]:focus, .watch input[type=tel]:focus { border-color: var(--accent); outline: 2px solid rgba(20, 108, 124, .3); }
+.watch .consent { display: flex; gap: 10px; align-items: flex-start; margin: 16px 0 4px; font-weight: 400; cursor: pointer; }
+.watch .consent input { margin-top: 2px; }
+.watch .consent span { font-size: .85rem; color: var(--muted); line-height: 1.55; }
+.watch .consent span span[dir="ltr"] { display: block; margin-top: 4px; text-align: right; }
 .watch button {
-  margin-top: 12px; padding: 11px 20px; border-radius: 8px; border: 0;
-  background: var(--accent, #2563eb); color: var(--accent-ink, #fff); font: inherit;
-  font-weight: 600; cursor: pointer;
+  display: block; width: 100%; min-height: 50px; margin-top: 14px; padding: 12px 20px;
+  border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink);
+  font: inherit; font-weight: 600; cursor: pointer;
 }
+@media (min-width: 560px) { .watch button { display: inline-block; width: auto; } }
 .watch button[disabled] { opacity: .55; cursor: not-allowed; }
-.watch .hp { position: absolute; left: -9999px; }
 .watch-msg { margin-top: 10px; font-size: .92rem; }
-.watch-msg.ok { color: #15803d; }
-.watch-msg.err { color: #b91c1c; }
+.watch-msg.ok { color: var(--match); }
+.watch-msg.err { color: var(--danger); }
 .notice {
   margin-top: 40px; border: 1px solid var(--line); border-radius: 12px;
   padding: 14px 18px; font-size: .88rem; color: var(--muted); background: var(--surface);
 }
+@media (max-width: 420px) { .notice { padding: 14px 14px; } }
 .notice strong { color: var(--ink); }
+.notice a { overflow-wrap: anywhere; }
+/* Footer. The page links were bare inline links joined by "·" — small, easily
+   mis-tapped, and default browser blue on the dark theme. Now a grid of
+   proper tap targets. */
+.sitenav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 640px) { .sitenav { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.sitenav a {
+  display: flex; align-items: center; justify-content: center; min-height: 48px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
+  color: var(--accent); text-decoration: none; text-align: center;
+  font-size: .9rem; font-weight: 500; line-height: 1.35; background: var(--bg);
+}
+.sitenav a:hover { border-color: var(--accent); }
+.sitenav a.wide { grid-column: 1 / -1; }
+.sharerow { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 #site-links a.fb, #site-links button.share {
-  display: inline-block; margin: 4px 6px; padding: 8px 16px; border-radius: 8px;
-  font: inherit; font-size: .92rem; text-decoration: none; cursor: pointer;
+  flex: 1 1 12rem; display: flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 8px 16px; border-radius: 10px;
+  font: inherit; font-size: .92rem; font-weight: 500; text-decoration: none; cursor: pointer;
   background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
 }
 #site-links button.share { background: var(--surface); color: var(--accent); }
 a.plain { color: var(--accent); }
+/* In the header row after the title, so it sits at the line's far end in
+   both directions (left in Arabic, right in English). */
 #lang-toggle {
-  float: left; font-family: inherit; font-size: .85rem; padding: 6px 16px;
+  order: 2; flex: 0 0 auto; margin-top: 8px;
+  font-family: inherit; font-size: .88rem; min-height: 40px; padding: 6px 16px;
   border-radius: 999px; border: 1px solid var(--line);
   background: var(--surface); color: var(--accent); cursor: pointer;
 }
 #lang-toggle:hover { border-color: var(--accent); }
-.wrap[dir="ltr"] #lang-toggle { float: right; }
+header p.sub { order: 3; }
 .tl-body .desc, .tl-top span, .veh { unicode-bidi: plaintext; }
 /* ---- dossier timeline ---- */
 .tl { list-style: none; margin: 10px 0 0; padding: 0; border-top: 1px solid var(--line); }
@@ -276,8 +370,9 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
 .tl-wait { margin-top: 10px; font-size: .85rem; color: var(--muted); }
 .detail-status { color: var(--muted); font-size: .82rem; margin: -2px 2px 6px; }
 .contact-warn { margin-top: 8px; font-size: .8rem; color: var(--danger); }
-.help { text-align: right; }
-.help ol { margin: 10px 0 0; padding: 0 20px 0 0; display: grid; gap: 8px; }
+.help { text-align: start; }
+.help ol { margin: 10px 0 0; padding: 0; padding-inline-start: 20px; display: grid; gap: 8px; }
+.help li { min-width: 0; }
 .help a { color: var(--accent); }
 .danger-box {
   margin-top: 12px; background: var(--danger-bg); color: var(--danger);
@@ -307,7 +402,7 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
 <div class="searchbox">
   <h2 class="vh" id="h-search">البحث في سجل العربات المفقودة برقم الشاسي أو اللوحة</h2>
   <label class="ask" id="ask" for="q">اكتب رقم الشاسي أو اللوحة
-    <span dir="ltr">/ Enter your chassis or plate number</span></label>
+    <span dir="ltr">Enter your chassis or plate number</span></label>
   <!-- NOT disabled while the payload loads. It used to be, and on Sudanese
        mobile data the download takes a minute or more: Clarity recorded
        visitors tapping a dead box for a whole session and leaving. Typing is
@@ -363,11 +458,11 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
      collects nothing. Do not move this into innerHTML.
      It is revealed only when a search returns zero results. -->
 <div class="watch" id="watch-box" hidden>
-  <h2>لم نجد الرقم — سجّل تنبيهاً</h2>
+  <h2 id="watch-h">لم نجد الرقم — سجّل تنبيهاً</h2>
   <p>
     السجل يكبر يومياً. اترك رقم الشاسي أو اللوحة ووسيلة تواصل، وإذا ظهر هذا
     الرقم في أي منشور لاحقاً سنبلغك.
-    <br><span dir="ltr">The registry grows daily. Leave the chassis or plate
+    <span dir="ltr">The registry grows daily. Leave the chassis or plate
     number and a way to reach you, and if it appears in a future post we will
     tell you.</span>
   </p>
@@ -376,15 +471,15 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
     <input type="hidden" name="form-name" value="watch">
     <p class="hp"><label>لا تملأ هذا الحقل <input name="bot-field"></label></p>
 
-    <label for="w-id">رقم الشاسي أو اللوحة <span dir="ltr">/ Chassis or plate</span></label>
+    <label for="w-id">رقم الشاسي أو اللوحة <span dir="ltr">Chassis or plate</span></label>
     <input type="text" id="w-id" name="identifier" required maxlength="40"
            placeholder="مثال: 1122334">
 
-    <label for="w-contact">وسيلة تواصل — واتساب أو هاتف <span dir="ltr">/ WhatsApp or phone</span></label>
+    <label for="w-contact">وسيلة تواصل — واتساب أو هاتف <span dir="ltr">WhatsApp or phone</span></label>
     <input type="tel" id="w-contact" name="contact" required maxlength="40"
            placeholder="09xxxxxxxx">
 
-    <label for="w-note">وصف العربة (اختياري) <span dir="ltr">/ Vehicle description (optional)</span></label>
+    <label for="w-note">وصف العربة (اختياري) <span dir="ltr">Vehicle description (optional)</span></label>
     <input type="text" id="w-note" name="note" maxlength="120"
            placeholder="كورولا بيضاء 2015">
 
@@ -400,7 +495,7 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
       </span>
     </label>
 
-    <button type="submit" id="w-submit">سجّل التنبيه <span dir="ltr">/ Register</span></button>
+    <button type="submit" id="w-submit">سجّل التنبيه · <span dir="ltr">Register</span></button>
     <div class="watch-msg" id="watch-msg"></div>
   </form>
 </div>
@@ -421,19 +516,22 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
   <div id="official-help"><br>__HELP_AR__</div>
   <br>آخر تحديث: <span id="upd">__UPDATED__</span></div>
 <!-- Outside #notice-box on purpose: the language switch rewrites that box wholesale. -->
-<div class="notice" id="site-links" style="text-align:center">
+<div class="notice" id="site-links">
   <h2 class="vh">صفحات الموقع</h2>
-  <a href="/guide.html">كيف تبحث عن عربتك المفقودة</a> ·
-  <a href="/scams.html">احذر النصب</a> ·
-  <a href="/yards.html">أحواش الحجز</a> ·
-  <a href="/en.html">English</a>
-  <br>
-  <a href="/support.html">ادعم المشروع · Support the project</a> ·
-  <a href="/stats.html">الإحصاءات · Statistics</a> ·
-  <a href="/privacy.html">الخصوصية · Privacy</a>
-  <br><br>
-  <a class="fb" href="https://www.facebook.com/profile.php?id=61596074817604" target="_blank" rel="noopener">تابعنا على فيسبوك · Follow on Facebook</a>
-  <button type="button" class="share" id="share-btn">شارك الموقع · Share</button>
+  <!-- data-en: the English text applyLang() swaps in. -->
+  <nav class="sitenav" aria-label="صفحات الموقع">
+    <a href="/guide.html" data-en="How to search">كيف تبحث عن عربتك</a>
+    <a href="/scams.html" data-en="Beware of scams">احذر النصب</a>
+    <a href="/yards.html" data-en="Impound yards">أحواش الحجز</a>
+    <a href="/support.html" data-en="Support the project">ادعم المشروع</a>
+    <a href="/stats.html" data-en="Statistics">الإحصاءات</a>
+    <a href="/privacy.html" data-en="Privacy">الخصوصية</a>
+    <a href="/en.html" class="wide" lang="en" dir="ltr">English page</a>
+  </nav>
+  <div class="sharerow">
+    <a class="fb" href="https://www.facebook.com/profile.php?id=61596074817604" target="_blank" rel="noopener" data-en="Follow on Facebook">تابعنا على فيسبوك</a>
+    <button type="button" class="share" id="share-btn" data-en="Share the site">شارك الموقع</button>
+  </div>
 </div>
 </div>
 
@@ -511,6 +609,8 @@ const EN = {
   src_telegram: 'Telegram', src_facebook: 'Facebook', src_intake: 'direct reports',
   emptyFilters: 'No vehicles match these filters.',
   emptyId: 'We did not find this number in the registry — that does not mean the vehicle is gone, only that it has not been sighted in any public post yet.',
+  watchH: 'Not found — register an alert',
+  watchHPartial: 'The results above match only part of this number and may be a different vehicle — if yours is not among them, register an alert',
   emptyText: 'No results for this search. Try the chassis or plate number — searching by number is far more accurate than by description.',
   showMore: 'Show more', chHasChassis: 'has chassis', chHasContact: 'has contact',
   chLoose: 'includes number-less sightings', chYear: 'year',
@@ -549,6 +649,7 @@ EN.notice = (updated) => `<strong>Important:</strong> this data is collected aut
 const t = (key, ar) => (LANG === 'en' ? (EN[key] ?? ar) : ar);
 
 const ALIASES = __ALIASES__;
+const SKEL_STOP = __SKEL_STOP__;
 const STATS = __STATS__;
 const FBKIND = __FBKIND__;   // facebook source id -> "g" group | "p" profile/page
 const SRCNAME = __SRCNAMES__; // facebook source id -> group name (config.yaml)
@@ -577,7 +678,7 @@ function isPlateShaped(s) {
 // كورولا / كورلا / كرلا / كريلا all reduce to كرل and match Toyota Corolla.
 const normAr = s => (s || '').toLowerCase()
   .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
-  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[\u0640\u064B-\u065F\u0670]/g, '');
+  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/\u06a9/g, '\u0643').replace(/\u06cc/g, '\u064a').replace(/[\u0640\u064B-\u065F\u0670]/g, '');
 const skeleton = w => { w = normAr(w); return w ? w[0] + w.slice(1).replace(/[اوي]/g, '') : ''; };
 
 const ALIAS_EXACT = {}, ALIAS_SKEL = {};
@@ -588,15 +689,53 @@ for (const [key, names] of Object.entries(ALIASES)) {
     if (s.length >= 3 && !(s in ALIAS_SKEL)) ALIAS_SKEL[s] = key;
   }
 }
+// Word-level alias matching, mirroring carhunt/aliases.py (rules 1 and 2
+// there): an alias must start a word and end one; 4+ letters may run on into
+// the same word; digits and a change of script end a word; colour words are
+// never skeleton-matched. No regex lookbehind: older Safari cannot parse it.
+const ARABIC_PREFIXES = ['ال', 'وال', 'بال', 'لل', 'و', 'ب', 'ل'];
+const RUN_ON_MIN = 4;
+const SKELETON_STOP = new Set(SKEL_STOP);
+const isAr = c => (c >= '\u0621' && c <= '\u064a') || (c >= '\u066e' && c <= '\u06d3');
+const isLat = c => c >= 'a' && c <= 'z';
+const isDig = c => (c >= '0' && c <= '9') || (c >= '\u0660' && c <= '\u0669') || (c >= '\u06f0' && c <= '\u06f9');
+function startsWord(n, i, arabic) {
+  const same = arabic ? isAr : isLat;
+  if (i === 0 || !same(n[i - 1])) return true;
+  if (!arabic) return false;
+  for (const p of ARABIC_PREFIXES) {
+    const j = i - p.length;
+    if (j >= 0 && n.startsWith(p, j) && (j === 0 || !isAr(n[j - 1]))) return true;
+  }
+  return false;
+}
+function endsWord(n, j, alias) {
+  if (j === n.length) return true;
+  const ch = n[j], last = alias[alias.length - 1];
+  if (isDig(last)) return !isDig(ch) && !isLat(ch);
+  const same = isAr(last) ? isAr : isLat;
+  return !same(ch) || alias.length >= RUN_ON_MIN;
+}
+function findWord(n, alias) {
+  const arabic = isAr(alias[0]);
+  let i = n.indexOf(alias);
+  while (i !== -1) {
+    if (endsWord(n, i + alias.length, alias) && startsWord(n, i, arabic)) return i;
+    i = n.indexOf(alias, i + 1);
+  }
+  return -1;
+}
 function modelKeysIn(text) {
   const n = normAr(text), found = new Set();
-  for (const [alias, key] of Object.entries(ALIAS_EXACT)) if (n.includes(alias)) found.add(key);
+  for (const [alias, key] of Object.entries(ALIAS_EXACT)) if (findWord(n, alias) !== -1) found.add(key);
   for (const w of n.match(/[؀-ۿ]{3,}/g) || []) {
+    if (SKELETON_STOP.has(w) || (w.startsWith('ال') && SKELETON_STOP.has(w.slice(2)))) continue;
     const key = ALIAS_SKEL[skeleton(w)];
     if (key) found.add(key);
   }
   return found;
 }
+// end modelKeysIn
 
 const STATUS_AR = { spotted: 'شوهدت', for_sale: 'معروضة للبيع', seeking_owner: 'تبحث عن صاحبها',
                     recovered: 'مستردة', unknown: '' };
@@ -682,28 +821,58 @@ document.getElementById('lang-toggle').addEventListener('click', () => {
 // Fetch, count, unpack and parse one payload, with retries and backoff.
 // progress(got, total, parsing) is called as bytes arrive; onRetry(attempt)
 // before each retry.
+//
+// The data host gets a DEADLINE. Clarity, 2026-11-10: in 19 of ~98 sessions the
+// first request to it failed, and the recordings show how: nothing for ~130 s
+// (the browser's own connect timeout), only then the fallback, and the same
+// 130 s again for detail.bin and on every later page view. Those visitors,
+// all in Sudan, looked at "loading…" for over two minutes with a working copy
+// one origin away. So: no response headers within HOST_WAIT_MS, or no bytes for
+// STALL_MS, and the request is aborted and the same-origin copy is used; and a
+// host that hung is skipped for HOST_SKIP_MS, so the wait is paid once, not
+// per file and per page.
+const HOST_WAIT_MS = 10000, STALL_MS = 30000, HOST_SKIP_MS = 24 * 3600 * 1000;
+const hostSkipped = () => {
+  try { return Date.now() - Number(localStorage.getItem('dataHostDown') || 0) < HOST_SKIP_MS; }
+  catch (e) { return false; }
+};
+let hostDown = hostSkipped();
 async function fetchPayload(url, progress, onRetry) {
   const name = url.split('?')[0];
-  const sources = DATA_HOST ? [hostedUrl(url), url] : [url];
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const src = sources[(attempt - 1) % sources.length];
+    // Odd attempts try the data host, even ones the same-origin copy; once the
+    // host has hung, every attempt is same-origin.
+    const hosted = !!DATA_HOST && !hostDown && attempt % 2 === 1;
+    const src = hosted ? hostedUrl(url) : url;
+    const abort = new AbortController();
+    let timedOut = false, timer = 0;
+    const arm = ms => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { timedOut = true; abort.abort(); }, ms);
+    };
     try {
-      if (src === url && sources.length > 1) track('payload_fallback', { payload: name });
-      const resp = await fetch(src, { cache: 'force-cache' });
+      if (!hosted && DATA_HOST) track('payload_fallback', { payload: name });
+      // Same-origin gets no header deadline: it is the last resort, and on a
+      // thin connection a slow answer still beats none.
+      if (hosted) arm(HOST_WAIT_MS);
+      const resp = await fetch(src, { cache: 'force-cache', signal: abort.signal });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const total = Number(resp.headers.get('content-length')) || 0;
       let got = 0, lastPaint = 0;
       progress(0, total, false);
+      arm(STALL_MS);
       const counted = resp.body.pipeThrough(new TransformStream({
         transform(chunk, ctl) {
           got += chunk.byteLength;
+          arm(STALL_MS);
           const now = performance.now();
           if (now - lastPaint > 250) { lastPaint = now; progress(got, total, false); }
           ctl.enqueue(chunk);
         },
       }));
       const text = await new Response(counted.pipeThrough(new DecompressionStream('gzip'))).text();
+      clearTimeout(timer);
       // JSON.parse blocks the main thread for seconds on a phone: say so first,
       // and give the browser one frame to paint it. NOT rAF alone: a background
       // tab never runs animation frames, so a page opened in a new tab sat at
@@ -712,11 +881,18 @@ async function fetchPayload(url, progress, onRetry) {
       await new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 60); });
       return JSON.parse(text);
     } catch (e) {
+      clearTimeout(timer);
       lastErr = e;
       track('payload_retry', { payload: name, attempt });
+      if (hosted && timedOut) {
+        hostDown = true;
+        try { localStorage.setItem('dataHostDown', String(Date.now())); } catch (e2) {}
+        track('payload_host_timeout', { payload: name });
+      }
       if (attempt < 3) {
         if (onRetry) onRetry(attempt + 1);
-        await new Promise(r => setTimeout(r, 1500 * attempt));   // backoff
+        // A host that timed out has already cost the wait: go straight on.
+        if (!(hosted && timedOut)) await new Promise(r => setTimeout(r, 1500 * attempt));   // backoff
       }
     }
   }
@@ -819,9 +995,10 @@ function sourceUrl(name) {
   return null;
 }
 function renderCoverage() {
+  // The registry size first: on a phone it is the full-width lead tile.
   document.getElementById('coverage').innerHTML = [
-    [t('covAnalyzed', 'منشور تم فحصه'), STATS.analyzed],
     [t('covVehicles', 'عربة في السجل'), P.nid],
+    [t('covAnalyzed', 'منشور تم فحصه'), STATS.analyzed],
     [t('covRecords', 'رصد مسجَّل'), STATS.vehicles],
     [t('covSources', 'مصدر يُراقب'), STATS.sources.length],
     [t('covPhotos', 'صورة محفوظة'), STATS.photos],
@@ -1067,6 +1244,10 @@ function queryCtx(query) {
 }
 function dscoreAt(i, ctx) {
   let sc = 0; const reasons = [];
+  // set when the record holds only a FRAGMENT of what was typed: a stored
+  // "016434" found by the full VIN JTMDF4EV7FJ016434 (2026-11-05). The registry
+  // does not have the whole number, so the watch must still be offered.
+  let fragment = false;
   if (ctx.qd.length >= 4) {
     const cn = IX.cn[i];
     if (cn.length >= 4 && ctx.qn.length >= 4) {
@@ -1082,7 +1263,10 @@ function dscoreAt(i, ctx) {
       // false lead. Mirrors watches.match_reason.
       const okIn = lo.includes(sh) && sh.length >= (qShorter ? 4 : 6)
         && sh.replace(/[^0-9]/g, '').length >= 5;
-      if (okEnd || okIn) { sc += 40 + sh.length * 8; reasons.push(t('r_ch', 'تطابق شاسي')); }
+      if (okEnd || okIn) {
+        sc += 40 + sh.length * 8; reasons.push(t('r_ch', 'تطابق شاسي'));
+        fragment = !qShorter;
+      }
     }
     if (!reasons.length && ctx.runs.length) {
       const pr = IX.pr[i];
@@ -1112,12 +1296,15 @@ function dscoreAt(i, ctx) {
   if (ctx.years.length && IX.yr[i] && ctx.years.indexOf(String(IX.yr[i])) !== -1) {
     sc += 20; reasons.push(t('r_year', 'تطابق سنة'));
   }
-  return sc > 0 ? { s: sc, reasons } : null;
+  // a fragment is the whole story only when nothing else matched (no plate,
+  // description, model or year)
+  return sc > 0 ? { s: sc, reasons, part: fragment && reasons.length === 1 } : null;
 }
 
 // ---- results ----
 const PAGE = 30;
 const SCORE = new Float64Array(N);
+const PART = new Uint8Array(N);   // 1 = matched only a fragment of the query (dscoreAt .part)
 let shown = PAGE;
 let list = [];       // dossier indices, already in display order
 let curCtx = null;   // active query context, for re-deriving the visible chips
@@ -1174,6 +1361,10 @@ function paint() {
 async function render() {
   const gen = ++renderGen;
   const query = $q.value.trim();
+  // While a number is being searched, the registry tiles and the sources box
+  // step aside: on a phone they stood ~700px tall between the box and the
+  // answer, so a search seemed to do nothing until the visitor scrolled.
+  document.querySelector('.wrap').classList.toggle('searching', !!query);
   const chips = activeChips();
   $chips.innerHTML = chips.map(c => `<span class="f">${esc(c)}</span>`).join('');
   shown = PAGE;
@@ -1240,7 +1431,7 @@ async function render() {
     const i = scanOrder[k];
     if (dossierPasses(i, W)) {
       const r = dscoreAt(i, ctx);
-      if (r) { SCORE[i] = r.s; hits.push(i); }
+      if (r) { SCORE[i] = r.s; PART[i] = r.part ? 1 : 0; hits.push(i); }
     }
     if ((k & (CHUNK - 1)) === CHUNK - 1) {
       await yieldToUI();
@@ -1276,7 +1467,16 @@ async function render() {
     $more.hidden = true; $shownLbl.textContent = '';
     return;
   }
-  hideWatch();
+  // Results that each hold only a piece of the typed number (a list's 6-digit
+  // tail under a full VIN) are not "found": without this the person sees
+  // someone else's car and no way to register. Measured 2026-11-05: the RAV4
+  // JTMDF4EV7FJ016434 found only a Kia Rio "016434" and the form stayed hidden.
+  if (list.every(i => PART[i])) {
+    track('search_fragment_only', { search_query: query, search_results: list.length });
+    showWatch(query, 'partial');
+  } else {
+    hideWatch();
+  }
   paint();
 }
 
@@ -1289,8 +1489,12 @@ const $watch = document.getElementById('watch-box');
 const $watchForm = document.getElementById('watch-form');
 const $watchMsg = document.getElementById('watch-msg');
 
-function showWatch(query) {
+function showWatch(query, kind) {
   if (!$watch) return;
+  const h = document.getElementById('watch-h');
+  if (h) h.textContent = kind === 'partial'
+    ? t('watchHPartial', 'النتائج أعلاه تطابق جزءاً من الرقم فقط، وقد تكون عربة أخرى — إن لم تكن عربتك بينها، سجّل تنبيهاً')
+    : t('watchH', 'لم نجد الرقم — سجّل تنبيهاً');
   const idField = document.getElementById('w-id');
   // Prefill with what they actually typed, but never overwrite something they
   // have already edited — losing a half-typed number would be worse than not
@@ -1344,11 +1548,27 @@ if ($watchForm) {
       // Netlify Forms accepts a urlencoded POST to any path on the site; the
       // form-name field is what routes it to the right form.
       const body = new URLSearchParams(new FormData($watchForm)).toString();
-      const resp = await fetch('/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
+      // Three tries. Clarity, 2026-11-08: a visitor in Sudan on a connection
+      // that had already dropped the data download twice submitted once, got
+      // the error 18 s later and left; nothing reached Netlify. A repeat that
+      // lands twice is harmless (same number, same contact); a lost
+      // registration is a person we can never tell.
+      let resp;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          resp = await fetch('/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+          });
+          if (resp.status < 500) break;
+          throw new Error('HTTP ' + resp.status);
+        } catch (err) {
+          if (attempt >= 3) throw err;
+          track('watch_retry');
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+        }
+      }
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       $watchMsg.className = 'watch-msg ok';
       $watchMsg.innerHTML = 'تم التسجيل. سنتواصل معك إذا ظهر الرقم.' +
@@ -1477,8 +1697,11 @@ const ORIG = {
   updated: (document.getElementById('upd') || { textContent: '' }).textContent,
 };
 const wrapEl = document.querySelector('.wrap');
+// Static labels that carry their English in data-en (footer links, share).
+const I18N_NODES = [...document.querySelectorAll('[data-en]')].map(el => [el, el.textContent]);
 function applyLang() {
   const en = LANG === 'en';
+  for (const [el, ar] of I18N_NODES) el.textContent = en ? el.dataset.en : ar;
   nf = nf0();
   wrapEl.dir = en ? 'ltr' : 'rtl';
   wrapEl.lang = en ? 'en' : 'ar';
