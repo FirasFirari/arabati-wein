@@ -4,8 +4,10 @@ Why: on 2026-11-02 everything was paused and stayed paused for 54 hours, and
 the daily lane had been dying on "database is locked" for two weeks, and
 nobody was told about either. A watchdog on this PC cannot report that the PC
 itself is off, asleep or paused; an outside service that expects a ping and
-alerts when it does not arrive can. Healthchecks.io (free plan) alerts on
-Telegram.
+alerts when it does not arrive can. Since 2026-11-16 only `carhunt-alive`
+notifies anyone (Telegram, after 48 h, never while paused); the other checks
+are a silent dashboard and the watchdog repairs what they show. carhunt/hc.py
+owns that rule.
 
 Configuration (config.yaml, private):
 
@@ -39,6 +41,7 @@ CHECKS = {
     "gemini-scoring": "both Gemini scoring steps exited 0",
     "photo-ocr": "photo OCR sweep finished",
     "clarity": "Clarity snapshot finished",
+    "search-console": "Search Console snapshot and index check finished",
     "backup-nightly": "nightly verified DB backup",
     "backup-offsite": "weekly encrypted offsite copy",
 }

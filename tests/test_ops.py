@@ -110,11 +110,74 @@ def test_tracked_records_the_jobs_own_exit_code(hdir, monkeypatch):
     assert json.loads((health.HEALTH_DIR / "job_raw_sweep.json").read_text())["last_exit"] == 1
 
 
-def test_restart_alerts_are_rate_limited_per_service(hdir, monkeypatch):
+def test_a_restart_is_silent_until_the_service_stays_down(hdir, monkeypatch):
+    """Owner's rule 2026-11-16: the system deals with it; speak only when stuck."""
     tmp, sent = hdir
+    monkeypatch.setattr(watchdog, "_unhealthy_streak", {})
     monkeypatch.setattr(watchdog, "check_services", lambda: ["intake_bot"])
     monkeypatch.setattr(watchdog, "catch_up", lambda: [])
-    monkeypatch.setattr(deadman, "ping", lambda *a, **k: None)
+    pings = []
+    monkeypatch.setattr(deadman, "ping", lambda slug, ok=True, *a, **k: pings.append((slug, ok)))
+    for _ in range(watchdog.PERSISTENT_CYCLES - 1):
+        watchdog.check_once()
+    assert sent == []                                   # hiccups: nobody is told
+    assert ("services", False) in pings                 # but the dashboard shows it
+    for _ in range(10):
+        watchdog.check_once()
+    assert len(sent) == 1 and "intake_bot" in sent[0]   # told once, not every cycle
+    monkeypatch.setattr(watchdog, "check_services", lambda: [])
     watchdog.check_once()
-    watchdog.check_once()              # 5 minutes later, still down
-    assert len([m for m in sent if "restarted" in m]) == 1
+    assert watchdog._unhealthy_streak == {} and pings[-1] == ("services", True)
+
+
+def test_catch_up_is_silent_until_it_has_failed_three_times(hdir, monkeypatch):
+    tmp, sent = hdir
+    stamp("daily_free_lane", 30)
+    now = time.time()
+    step = watchdog.CATCHUP_RETRY_HOURS * 3600 + 1
+    for i in range(watchdog.GIVE_UP_AFTER):
+        assert watchdog.catch_up(now=now + i * step, run=lambda task: 0) == ["daily_free_lane"]
+        assert watchdog.given_up() == []                # three attempts: still silent
+    watchdog.catch_up(now=now + 3 * step, run=lambda task: 0)   # a fourth was needed
+    assert watchdog.given_up() == ["daily_free_lane"]
+    watchdog.catch_up(now=now + 4 * step, run=lambda task: 0)
+    assert watchdog.given_up() == []                    # reported once
+    stamp("daily_free_lane", 1)                         # it finally ran
+    watchdog.catch_up(now=now + 5 * step, run=lambda task: 0)
+    state = json.loads(watchdog.CATCHUP_STATE.read_text())
+    assert "_tries_daily_free_lane" not in state and "_gave_up_daily_free_lane" not in state
+
+
+def test_healthchecks_policy_one_last_resort_everything_else_silent():
+    from carhunt import hc
+    channels = [{"id": "E", "kind": "email"}, {"id": "T", "kind": "telegram"}]
+    existing = [
+        {"uuid": "1", "slug": "carhunt-alive", "channels": "E,T", "grace": 21600},
+        {"uuid": "2", "slug": "raw-sweep", "channels": "E,T", "grace": 10800},
+        {"uuid": "3", "slug": "clarity", "channels": "", "grace": 43200},
+    ]
+    calls = hc.plan(existing, channels)
+    assert ("POST", "/checks/1", {"channels": "T", "grace": 48 * 3600}) in calls
+    assert ("POST", "/checks/2", {"channels": ""}) in calls
+    assert not [c for c in calls if c[1] == "/checks/3"]          # already silent
+    created = [c[2]["slug"] for c in calls if c[1] == "/checks/"]
+    assert created == ["search-console"]
+    # idempotent: nothing to do once the rule holds
+    done = [{"uuid": "1", "slug": "carhunt-alive", "channels": "T", "grace": 48 * 3600},
+            {"uuid": "4", "slug": "search-console", "channels": "", "grace": 43200}]
+    assert hc.plan(done, channels) == []
+
+
+def test_pause_silences_only_what_the_pause_stops():
+    from carhunt import hc
+    listing = {"checks": [
+        {"uuid": "1", "slug": "carhunt-alive", "status": "up"},
+        {"uuid": "2", "slug": "daily-lane", "status": "down"},
+        {"uuid": "3", "slug": "photo-ocr", "status": "paused"},
+        {"uuid": "4", "slug": "backup-offsite", "status": "new"}]}
+    posted = []
+    api = lambda m, p, b=None: listing if m == "GET" else posted.append(p)
+    assert hc.pause(light=True, api=api) == ["daily-lane"]
+    assert posted == ["/checks/2/pause"]
+    posted.clear()
+    assert hc.pause(api=api) == ["carhunt-alive", "daily-lane"]   # paused/new need nothing

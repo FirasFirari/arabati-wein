@@ -37,6 +37,7 @@ Credentials live in `config.yaml` or the environment, never in code:
 | Daily Free Lane | 12:00, retried hourly to 22:00 | `scripts\daily_free_lane.py` | `data/logs/daily_free_lane.log` |
 | Backup | 13:00, retried hourly to 23:00 | `scripts\backup_db.py` | `data/logs/backup.log` |
 | Clarity Snapshot | 21:00 | `scripts\clarity_export.py --days 1 --save data\clarity` | — |
+| Search Console | 21:10 | `scripts\gsc_export.py --save --quiet`: 28-day snapshot to `data\gsc`, index check of every sitemap URL, Telegram alert on any change | — |
 
 Plus, on Netlify (runs with the PC off): `site/functions/submission-created.js`
 announces each new watch registration on Telegram.
@@ -46,13 +47,18 @@ announces each new watch registration on Telegram.
 hold code in memory: restart them after a code or config change.
 
 **When something stops happening, you hear about it:**
-* the watchdog restarts a stuck service and says so on Telegram
-  (`telegram.notify_chat_id`);
+* the watchdog restarts a stuck service silently; it sends one Telegram
+  (`telegram.notify_chat_id`) only when the service is still unhealthy after
+  6 restarts in a row (30 minutes);
 * a scheduled job that has not *succeeded* for too long (stamps in
-  `data/health/job_*.json`) is started again by the watchdog within 5 minutes;
-* Healthchecks.io (`healthchecks.ping_key`) alerts when pings stop arriving:
-  `carhunt-alive` DOWN means the PC is off, asleep or fully paused; any other
-  check DOWN or failed means that job is broken.
+  `data/health/job_*.json`) is started again by the watchdog within 5 minutes,
+  silently; one Telegram goes out if it is still stale after 3 attempts;
+* Healthchecks.io is a silent dashboard (`python -m carhunt.hc status`). Only
+  `carhunt-alive` notifies, on Telegram, after 48 hours without a ping while
+  not paused: the PC is off or asleep. Pause silences every check it stops
+  (`carhunt.hc pause`); they wake on the first ping after Resume.
+  `python -m carhunt.hc policy` reapplies this rule and creates missing checks
+  (needs `healthchecks.api_key`).
 * `data/logs/db_locks.log` names any process that held the database write lock
   for over a second.
 

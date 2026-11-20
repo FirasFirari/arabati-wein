@@ -316,6 +316,11 @@ def main() -> None:
         indexnow.submit()
     except Exception as e:  # a ping failure must never fail a deploy
         print(f"indexnow: skipped ({e})")
+    try:  # Google has no IndexNow; resubmitting the sitemap is its equivalent
+        import gsc_export
+        gsc_export.resubmit_sitemap(gsc_export.session())
+    except (Exception, SystemExit) as e:
+        print(f"search console sitemap: skipped ({e})")
 
 
 if __name__ == "__main__":
