@@ -25,7 +25,7 @@ import json
 import re
 
 from .config import DATA_DIR
-from .normalize import is_plate_shaped, norm_chassis, plate_variants
+from .normalize import ARABIC_INDIC, is_plate_shaped, norm_chassis, plate_variants
 
 WATCHES_JSON = DATA_DIR / "watches.json"
 WATCHES_CSV = DATA_DIR / "watches.csv"
@@ -44,8 +44,51 @@ def _pick(row: dict, names: tuple) -> str:
     return ""
 
 
-def load_watches() -> list[dict]:
+def _contact_key(contact) -> str:
+    """Digits of a phone (last nine, so 09... and +2499... are one person),
+    else the trimmed text."""
+    c = str(contact or "").strip()
+    digits = re.sub(r"\D", "", c.translate(ARABIC_INDIC))
+    return digits[-9:] if len(digits) >= 9 else c.lower()
+
+
+def merge_repeats(watches: list[dict]) -> list[dict]:
+    """One row per (number, person): the same car registered twice by the same
+    contact is one watch.
+
+    Measured 2026-11-20: 9 such repeats in 229 rows, and in 7 of them the
+    second submission only added or changed the description. The earliest row
+    wins (its identifier text is the one past reviews are keyed by, its date
+    is when the watch began); notes are combined; `repeats` and `updated_at`
+    say that it happened. A full VIN and its last digits, or two numbers one
+    digit apart, are NOT merged here: nothing can tell a typo from a second car.
+    Netlify keeps every submission; nothing is deleted anywhere.
+    """
+    merged: dict[tuple, dict] = {}
+    for w in sorted(watches, key=lambda w: w.get("created_at") or ""):
+        qn, runs = readings(w["identifier"])
+        number = qn or "plate:" + "|".join(sorted(runs)) or w["identifier"]
+        key = (number, _contact_key(w.get("contact")))
+        first = merged.get(key)
+        if first is None:
+            merged[key] = dict(w, repeats=1)
+            continue
+        first["repeats"] += 1
+        first["updated_at"] = w.get("created_at") or ""
+        note = (w.get("note") or "").strip()
+        have = (first.get("note") or "").strip()
+        if note and note not in have:
+            first["note"] = f"{have} / {note}" if have else note
+    out = list(merged.values())
+    out.sort(key=lambda w: w.get("created_at") or "", reverse=True)
+    return out
+
+
+def load_watches(merged: bool = True) -> list[dict]:
     """Every standing watch we hold locally, newest first.
+
+    Repeats by the same person are merged (see merge_repeats); pass
+    merged=False for the raw form rows.
 
     Prefers `data/watches.json` (the API pull, which carries a real timestamp)
     and falls back to `data/watches.csv` (the manual export). Returns [] when
@@ -74,7 +117,7 @@ def load_watches() -> list[dict]:
             "created_at": _pick(r, _WHEN_KEYS),
         })
     out.sort(key=lambda w: w["created_at"], reverse=True)
-    return out
+    return merge_repeats(out) if merged else out
 
 
 def match_reason(qn: str, qp, chassis_norm: str, plate_norm: str):

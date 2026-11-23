@@ -472,9 +472,20 @@ details.tl-more .tl { border-top: none; margin-top: 0; }
     number and a way to reach you, and if it appears in a future post we will
     tell you.</span>
   </p>
+  <!-- Shown instead of the form when THIS device already registered the
+       number (2026-11-20: 9 people had registered the same car twice, 7 of
+       them only to add the description they left out the first time). -->
+  <div id="watch-known" hidden>
+    <p class="watch-msg ok" id="watch-known-msg"></p>
+    <button type="button" id="watch-edit">أضف وصف العربة أو عدّل التسجيل · <span dir="ltr">Add details or update</span></button>
+  </div>
   <form id="watch-form" name="watch" method="POST"
         data-netlify="true" netlify-honeypot="bot-field">
     <input type="hidden" name="form-name" value="watch">
+    <!-- Set when the visitor is ADDING to a registration they already made.
+         Must exist in the static markup: Netlify drops fields it did not see
+         at deploy time. -->
+    <input type="hidden" name="update_of" id="w-update" value="">
     <p class="hp"><label>لا تملأ هذا الحقل <input name="bot-field"></label></p>
 
     <label for="w-id">رقم الشاسي أو اللوحة <span dir="ltr">Chassis or plate</span></label>
@@ -616,6 +627,7 @@ const EN = {
   emptyFilters: 'No vehicles match these filters.',
   emptyId: 'We did not find this number in the registry — that does not mean the vehicle is gone, only that it has not been sighted in any public post yet.',
   watchH: 'Not found — register an alert',
+  watchHKnown: 'Not found yet — your alert is registered',
   watchHPartial: 'The results above match only part of this number and may be a different vehicle — if yours is not among them, register an alert',
   emptyText: 'No results for this search. Try the chassis or plate number — searching by number is far more accurate than by description.',
   showMore: 'Show more', chHasChassis: 'has chassis', chHasContact: 'has contact',
@@ -1506,8 +1518,63 @@ function showWatch(query, kind) {
   // have already edited — losing a half-typed number would be worse than not
   // prefilling at all.
   if (idField && !idField.dataset.touched) idField.value = query;
+  const saved = findSavedWatch(query);
+  if (saved && $watchForm && !$watchForm.dataset.editing) {
+    if (h) h.textContent = t('watchHKnown', 'لم نجد الرقم بعد — تنبيهك مسجَّل');
+    showKnownWatch(saved, false);
+  } else if ($watchForm && !$watchForm.dataset.editing) {
+    if ($known) $known.hidden = true;
+    $watchForm.hidden = false;
+  }
   $watch.hidden = false;
-  track('watch_shown');
+  track(saved ? 'watch_known' : 'watch_shown');
+}
+
+// ---- registrations this device already made ----
+// Only the normalised number, the date and whether a description was given
+// are kept, on the visitor's own device. Never the contact. Storage can be
+// missing or throw (private window, blocked site data): every read and write
+// is guarded and the page works without it.
+const WATCH_STORE = 'watches';
+function savedWatches() {
+  try {
+    const v = JSON.parse(localStorage.getItem(WATCH_STORE) || '[]');
+    return Array.isArray(v) ? v.filter(w => w && typeof w.k === 'string') : [];
+  } catch (e) { return []; }
+}
+function watchKey(v) { return normChassis(v || ''); }
+function findSavedWatch(v) {
+  const k = watchKey(v);
+  return (k && savedWatches().find(w => w.k === k)) || null;
+}
+function rememberWatch(v, hasNote) {
+  const k = watchKey(v);
+  if (!k) return null;
+  const old = findSavedWatch(v);
+  const entry = { k, at: (old && old.at) || new Date().toISOString().slice(0, 10),
+                  note: !!hasNote || !!(old && old.note) };
+  try {
+    const rest = savedWatches().filter(w => w.k !== k);
+    localStorage.setItem(WATCH_STORE, JSON.stringify([...rest, entry].slice(-30)));
+  } catch (e) {}
+  return entry;
+}
+// ---- end registrations ----
+
+const $known = document.getElementById('watch-known');
+function showKnownWatch(saved, justNow) {
+  if (!$known || !$watchForm) return;
+  const at = /^\d{4}-\d{2}-\d{2}$/.test(saved.at || '') ? saved.at : '';
+  const ar = justNow ? 'تم التسجيل. سنتواصل معك إذا ظهر الرقم.'
+    : `هذا الرقم مسجَّل من هذا الجهاز${at ? ' منذ ' + at : ''} وما زلنا نتابعه. لا حاجة للتسجيل مرة أخرى.`;
+  const en = justNow ? 'Registered. We will contact you if the number appears.'
+    : `This number was registered from this device${at ? ' on ' + at : ''} and we are still watching it. No need to register again.`;
+  const hint = saved.note ? '' :
+    '<br>لم تكتب وصف العربة. النوع واللون والسنة تساعدنا على تمييز عربتك عن غيرها.' +
+    '<br><span dir="ltr">You gave no description. Make, colour and year help us tell your vehicle from others.</span>';
+  document.getElementById('watch-known-msg').innerHTML = ar + '<br><span dir="ltr">' + en + '</span>' + hint;
+  $known.hidden = false;
+  $watchForm.hidden = true;
 }
 
 function hideWatch() { if ($watch) $watch.hidden = true; }
@@ -1544,6 +1611,22 @@ if ($watchForm) {
     if (consent.checked && $watchMsg.classList.contains('err')) $watchMsg.textContent = '';
   });
 
+  const $edit = document.getElementById('watch-edit');
+  if ($edit) $edit.addEventListener('click', () => {
+    // Same form, sent again with update_of set: the registry merges it into
+    // the first registration instead of counting a second car.
+    $watchForm.dataset.editing = '1';
+    document.getElementById('w-update').value = watchKey(idField.value);
+    document.getElementById('w-submit').innerHTML = 'حدّث التسجيل · <span dir="ltr">Update</span>';
+    $watchMsg.className = 'watch-msg';
+    $watchMsg.innerHTML = 'اكتب نفس وسيلة التواصل التي سجّلت بها، ليُضاف الوصف إلى تسجيلك نفسه.' +
+      '<br><span dir="ltr">Use the same contact you registered with, so this is added to the same registration.</span>';
+    $known.hidden = true;
+    $watchForm.hidden = false;
+    document.getElementById('w-note').focus();
+    track('watch_edit');
+  });
+
   $watchForm.addEventListener('submit', async (e) => {
     e.preventDefault();          // stay on the page; a redirect would lose the search
     const btn = document.getElementById('w-submit');
@@ -1576,13 +1659,19 @@ if ($watchForm) {
         }
       }
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      $watchMsg.className = 'watch-msg ok';
-      $watchMsg.innerHTML = 'تم التسجيل. سنتواصل معك إذا ظهر الرقم.' +
-        '<br><span dir="ltr">Registered. We will contact you if the number appears.</span>';
-      $watchForm.querySelectorAll('input').forEach(i => {
-        if (i.type !== 'hidden') i.disabled = true;
-      });
-      track('watch_submit');
+      // Not locked any more: the form gives way to the "registered" panel,
+      // which offers to add the description. People used to register the
+      // same number a second time just to do that.
+      const wasUpdate = !!document.getElementById('w-update').value;
+      const saved = rememberWatch(idField.value, !!document.getElementById('w-note').value.trim())
+        || { at: '', note: true };
+      delete $watchForm.dataset.editing;
+      document.getElementById('w-update').value = '';
+      $watchMsg.textContent = '';
+      btn.disabled = false;
+      btn.innerHTML = 'سجّل التنبيه · <span dir="ltr">Register</span>';
+      showKnownWatch(saved, true);
+      track(wasUpdate ? 'watch_update' : 'watch_submit');
     } catch (err) {
       $watchMsg.className = 'watch-msg err';
       $watchMsg.innerHTML = 'تعذّر التسجيل. تأكد من اتصالك وحاول مرة أخرى.' +
