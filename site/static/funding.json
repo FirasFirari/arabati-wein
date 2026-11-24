@@ -61,7 +61,7 @@
     "No private channel: we never ask for a chassis number in a direct message",
     "Photographed documents' text is never published",
     "Every record names its source and links to the original post",
-    "Numbers are published honestly, including zero recoveries"
+    "Numbers are published honestly, including how few recoveries are confirmed so far"
   ],
   "will_not": [
     "Recover a specific car",

@@ -130,10 +130,10 @@ config.example.yaml every key, documented
 
 ## Status (November 2026)
 
-Measured from the database on 2026-11-14 and republished at
-https://mycarsd.online/stats.html: 199,117 posts collected since 22 August 2026,
-90,441 distinct chassis numbers searchable, 106,213 identified vehicles, 137
-standing watches, 2 leads relayed, 0 confirmed recoveries so far. 136,422 posts
+Measured from the database on 2026-11-24 and republished at
+https://mycarsd.online/stats.html: 211,018 posts collected since 22 August 2026,
+96,430 distinct chassis numbers searchable, 115,390 identified vehicles, 247
+standing watches, 9 leads relayed, 2 confirmed recoveries so far. 138,443 posts
 are still waiting to be processed. The project runs on one computer. It has a
 fiscal host (Open Source Europe, via Open Collective) and no funding yet; the
 funding ladder and what each level adds are on the support page.
