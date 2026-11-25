@@ -25,6 +25,15 @@ This module does that check unattended:
      card with the WhatsApp DRAFT (nothing is sent to the registrant).
      `unclear` / low confidence -> stays visible, flagged "needs your eye".
   4. ONE Telegram message per run with every verdict. Nothing before that.
+  5. A lead is REMEMBERED (`data/verify_leads.json`, since 2026-11-25): a new
+     copy of the same list entry is not read again and sends nothing; a
+     DIFFERENT list naming a watch that already has a live lead is still read,
+     and reported as one line in the summary instead of a second lead card.
+     An `unclear` entry is remembered the same way: its copies are not read
+     again unless the registrant's note has changed since (new details can
+     settle it). A watch in `data/watch_closed.json` (recovered) is never
+     verified again.
+     Nothing here changes what the sweep matches or what the report shows.
 
 The headless call strips ANTHROPIC_API_KEY so it runs on the claude.ai login
 (subscription), never on a billed key. `verify:` in config.yaml sets the model.
@@ -32,6 +41,8 @@ The headless call strips ANTHROPIC_API_KEY so it runs on the claude.ai login
     python -m carhunt.verify                     # process the queue
     python -m carhunt.verify --dry-run           # ask, print, write nothing
     python -m carhunt.verify --replay IDENT POST_ID [--show-evidence]
+    python -m carhunt.verify --mark-lead IDENT POST_ID   # a lead a HUMAN opened
+    python -m carhunt.verify --seed-leads        # rebuild the memory from history
 """
 import datetime
 import json
@@ -40,6 +51,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 from . import notify, watches as watchlib
 from .config import DATA_DIR, PROJECT_ROOT, load_config
@@ -47,6 +59,9 @@ from .config import DATA_DIR, PROJECT_ROOT, load_config
 QUEUE = DATA_DIR / "verify_queue.json"
 LOG = DATA_DIR / "logs" / "verify.log"
 VERDICTS = DATA_DIR / "verify_verdicts.jsonl"
+LEADS = DATA_DIR / "verify_leads.json"
+LOCK = DATA_DIR / "verify.lock"
+LOCK_STALE_S = 2 * 3600          # 12 groups x 300 s timeout is the worst honest run
 AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 VERDICTS_OK = ("possible sighting", "own post", "different car", "unclear")
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -98,6 +113,186 @@ def enqueue(pairs) -> int:
         added += 1
     save_queue(items)
     return added
+
+
+# ------------------------------------------------------------ lead memory --
+# Why this exists: on 2026-11-24 one already-handled lead produced 12
+# Telegram cards in 16 minutes. Only "own post" / "different car" were ever
+# stored, so every new copy of a list holding a real lead was a new question,
+# a new Opus call and a new card; and two runs overlapped on one queue.
+#
+# What is deliberately NOT done: silencing a watch because it has a lead. A
+# later list can carry a newer date, a place or another phone number, and the
+# first publisher often does not answer. Only a copy of the SAME entry (same
+# watch, same words around the number) is skipped.
+def load_leads() -> list[dict]:
+    try:
+        return json.loads(LEADS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def save_leads(rows: list[dict]) -> None:
+    tmp = LEADS.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, LEADS)
+
+
+def _reviewed_rows() -> dict:
+    try:
+        rows = json.loads(watchlib.REVIEWED_JSON.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {(r["identifier"], int(r["post_id"])): r for r in rows
+            if r.get("identifier") and r.get("post_id") is not None}
+
+
+def _is_live(entry: dict, reviewed) -> bool:
+    """A remembered lead is live while at least one of its posts has not been
+    judged 'not a sighting'. When a human (or a registrant's reply) kills every
+    post of it, it is dead: it no longer counts as a known lead."""
+    return any((entry["identifier"], int(p)) not in reviewed for p in entry["post_ids"])
+
+
+def _kind(entry: dict) -> str:
+    """'lead' or 'unclear'. Only a lead makes a watch one with a known lead."""
+    return entry.get("kind") or "lead"
+
+
+def remember_lead(leads: list[dict], ident: str, ctx: str, post_ids, source: str,
+                  conf=None, reason: str = "", kind: str | None = None,
+                  note: str | None = None) -> dict:
+    """Add the posts to the entry for (watch, context), creating it if needed.
+    `kind` / `note` given = a fresh judgement: it replaces the stored one (an
+    unclear entry re-read after the registrant added details can become a lead)."""
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    for e in leads:
+        if e["identifier"] == ident and e["ctx"] == ctx:
+            e["post_ids"] = sorted(set(e["post_ids"]) | {int(p) for p in post_ids})
+            e["last_at"] = now
+            if kind:
+                e.update(kind=kind, conf=conf, reason=reason[:300], source=source)
+            if note is not None:
+                e["note"] = note
+            return e
+    e = {"identifier": ident, "ctx": ctx, "post_ids": sorted({int(p) for p in post_ids}),
+         "first_at": now, "last_at": now, "source": source, "conf": conf,
+         "reason": reason[:300], "kind": kind or "lead", "note": note or ""}
+    leads.append(e)
+    return e
+
+
+def _ctx_of(conn, item: dict) -> str:
+    post = _post(conn, item["post_id"])
+    return _context_key(post.get("text", "") + " " + post.get("ocr", ""), _token_for(item))
+
+
+def seed_leads(conn) -> int:
+    """Rebuild the memory from `verify_verdicts.jsonl` (every verdict applied as
+    a lead or left unclear). Safe to repeat: entries merge on (watch, context),
+    and an entry that is already there keeps its kind. An unclear entry is
+    stamped with the watch's note as it is NOW."""
+    leads, n = load_leads(), 0
+    notes = {}
+    for w in watchlib.load_watches():
+        notes.setdefault(w["identifier"], w.get("note") or "")
+    try:
+        lines = VERDICTS.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        applied = str(rec.get("applied") or "")
+        if not (applied.startswith("lead") or applied == "unclear") or not rec.get("post_ids"):
+            continue
+        kind = "lead" if applied.startswith("lead") else "unclear"
+        item = {"identifier": rec["identifier"], "post_id": rec["post_ids"][0], "why": rec.get("why")}
+        ctx = _ctx_of(conn, item) or f"post:{item['post_id']}"
+        v = rec.get("verdict") or {}
+        before = len(leads)
+        old = next((x for x in leads if x["identifier"] == rec["identifier"] and x["ctx"] == ctx), None)
+        if old:                                      # keep what is known; a lead outranks unclear
+            e = remember_lead(leads, rec["identifier"], ctx, rec["post_ids"], old.get("source") or "")
+            if kind == "lead" and _kind(old) != "lead":
+                e["kind"] = "lead"
+        else:
+            e = remember_lead(leads, rec["identifier"], ctx, rec["post_ids"], "verifier (history)",
+                              v.get("confidence"), v.get("reason") or "", kind=kind,
+                              note=notes.get(rec["identifier"], ""))
+        e["first_at"] = min(e["first_at"], rec.get("at") or e["first_at"])
+        n += len(leads) - before
+    save_leads(leads)
+    return n
+
+
+def mark_lead(conn, ident: str, post_id: int, why: str = "") -> dict:
+    """Record a lead a HUMAN opened (for example by overruling a 'different
+    car'). Copies of that entry are then neither re-read nor auto-dismissed:
+    before this, the next copy was marked 'different car' again and hid."""
+    item = {"identifier": ident, "post_id": int(post_id), "why": why}
+    ctx = _ctx_of(conn, item) or f"post:{int(post_id)}"
+    leads = load_leads()
+    e = remember_lead(leads, ident, ctx, [post_id], "hand", kind="lead")
+    save_leads(leads)
+    return e
+
+
+# ------------------------------------------------------------------- lock --
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)          # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return bool(ok) and code.value == 259          # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _take_lock() -> bool:
+    """One verifier at a time. A lock whose process is gone (the scheduler
+    killed the sweep) or that is older than LOCK_STALE_S is taken over, so a
+    crash can delay verification but never stop it."""
+    for _ in range(2):
+        try:
+            fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                pid = int((LOCK.read_text(encoding="utf-8").split() or ["0"])[0])
+                age = time.time() - LOCK.stat().st_mtime
+            except (OSError, ValueError):
+                pid, age = 0, LOCK_STALE_S + 1
+            if _pid_alive(pid) and age < LOCK_STALE_S:
+                return False
+            log(f"stale lock (pid {pid}, {age:.0f}s old) taken over")
+            try:
+                LOCK.unlink()
+            except OSError:
+                return False
+            continue
+        os.write(fd, f"{os.getpid()} {datetime.datetime.now().isoformat(timespec='seconds')}".encode())
+        os.close(fd)
+        return True
+    return False
+
+
+def _release_lock() -> None:
+    try:
+        LOCK.unlink()
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------- evidence --
@@ -320,56 +515,126 @@ MARK = {"possible sighting": "✅ POSSIBLE SIGHTING", "own post": "✗ own post"
         "different car": "✗ different car", "unclear": "❓ unclear — needs your eye"}
 
 
-def run(conn, watches=None, dry_run: bool = False) -> dict:
-    """Process the queue. Returns counts: groups, leads, reviewed, unclear, failed, skipped."""
+def run(conn, watches=None, dry_run: bool = False, ask=None) -> dict:
+    """Process the queue. Returns counts: groups, leads, reviewed, unclear,
+    failed, skipped, known (copies of a remembered lead, not read again)."""
+    if dry_run:
+        return _run(conn, watches, True, ask or ask_claude)
+    if not _take_lock():
+        log("another verifier run holds the lock; the queue is left for it")
+        return {"groups": 0, "leads": 0, "reviewed": 0, "unclear": 0, "failed": 0,
+                "skipped": 0, "known": 0, "locked": 1}
+    try:
+        return _run(conn, watches, False, ask or ask_claude)
+    finally:
+        _release_lock()
+
+
+def _run(conn, watches, dry_run: bool, ask) -> dict:
     cfg = _cfg()
     items = load_queue()
-    stats = {"groups": 0, "leads": 0, "reviewed": 0, "unclear": 0, "failed": 0, "skipped": 0}
+    stats = {"groups": 0, "leads": 0, "reviewed": 0, "unclear": 0, "failed": 0,
+             "skipped": 0, "known": 0}
     if not items:
         return stats
     watches = watches or watchlib.load_watches()
     by_ident: dict = {}
     for w in watches:
         by_ident.setdefault(w["identifier"], w)
-    reviewed = watchlib.load_reviewed()
-    items = [i for i in items if (i["identifier"], int(i["post_id"])) not in reviewed]
+    rrows = _reviewed_rows()
+    closed = watchlib.load_closed()
+    done: set = set()            # (identifier, post_id) leaving the queue this run
+    attempts: dict = {}          # (identifier, post_id) -> attempts, for the ones kept
+    today = datetime.date.today().isoformat()
+
+    def key(i):
+        return (i["identifier"], int(i["post_id"]))
+
+    live = []
+    for i in items:
+        if key(i) in rrows:
+            done.add(key(i))
+        elif i["identifier"] in closed:              # recovered: never verified again
+            done.add(key(i))
+            log(f"closed watch {i['identifier']} ({closed[i['identifier']].get('status')}): "
+                f"post {i['post_id']} not verified")
+        else:
+            live.append(i)
 
     # group: same watch, same words around the number -> one question
     groups: dict = {}
-    for it in items:
-        post = _post(conn, it["post_id"])
-        ctx = _context_key(post.get("text", "") + " " + post.get("ocr", ""), _token_for(it))
+    for it in live:
+        ctx = _ctx_of(conn, it)
         groups.setdefault((it["identifier"], ctx or f"post:{it['post_id']}"), []).append(it)
-    order = sorted(groups.values(), key=lambda g: min(x["post_id"] for x in g))
+
+    # a copy of an entry already judged a lead is not a new question
+    leads = load_leads()
+    lead_at = {(e["identifier"], e["ctx"]): e for e in leads}
+    fresh = {}
+    for (ident, ctx), group in groups.items():
+        e = lead_at.get((ident, ctx))
+        pids = [g["post_id"] for g in group]
+        note_now = (by_ident.get(ident) or {}).get("note") or ""
+        if e and _is_live(e, rrows) and _kind(e) == "unclear" and (e.get("note") or "") != note_now:
+            e = None                                 # new details from the registrant: read it again
+        if e and _is_live(e, rrows):
+            stats["known"] += len(group)
+            log(f"known {_kind(e)}: {ident} posts {pids} are copies of the entry in post "
+                f"{e['post_ids'][0]}; not read again, nothing sent")
+            if not dry_run:
+                remember_lead(leads, ident, ctx, pids, e.get("source") or "")
+            done.update(key(g) for g in group)
+            continue
+        if e:                                        # the lead was killed by hand
+            killed = {(rrows[(ident, int(p))].get("verdict"), rrows[(ident, int(p))].get("reviewed_by"))
+                      for p in e["post_ids"]}
+            if len({v for v, _ in killed}) == 1:
+                v, by = sorted(killed, key=str)[0]
+                if not dry_run:
+                    _append_reviewed([{"identifier": ident, "post_id": g["post_id"], "verdict": v,
+                                       "why_it_hit": g.get("why"),
+                                       "note": f"same list entry as post {e['post_ids'][0]}, which was "
+                                               f"judged '{v}' by {by or 'hand'}; carried over, not re-read",
+                                       "reviewed": today, "reviewed_by": "claude-auto (carried)"}
+                                      for g in group])
+                    remember_lead(leads, ident, ctx, pids, e.get("source") or "")
+                for g in group:                      # judged now: the entry stays dead
+                    rrows[key(g)] = {"verdict": v, "reviewed_by": "claude-auto (carried)"}
+                stats["reviewed"] += len(group)
+                log(f"carried: {ident} posts {pids} -> {v} (same entry as post {e['post_ids'][0]})")
+                done.update(key(g) for g in group)
+                continue
+        fresh[(ident, ctx)] = group
+
+    order = sorted(fresh.items(), key=lambda kv: min(x["post_id"] for x in kv[1]))
     todo, later = order[:cfg["max_groups_per_run"]], order[cfg["max_groups_per_run"]:]
-    stats["skipped"] = sum(len(g) for g in later)
+    stats["skipped"] = sum(len(g) for _, g in later)
 
     lines = []
-    remaining = [x for g in later for x in g]
-    today = datetime.date.today().isoformat()
-    for group in todo:
-        ident = group[0]["identifier"]
+    for (ident, ctx), group in todo:
         watch = by_ident.get(ident) or {"identifier": ident, "note": "", "contact": ""}
         try:
             ev = evidence(conn, group, watch)
-            verdict = ask_claude(ev, cfg)
+            verdict = ask(ev, cfg)
         except Exception as e:                      # keep for next run, 3 strikes
             log(f"FAILED {ident} post {group[0]['post_id']}: {e}")
-            for g in group:
-                g["attempts"] = int(g.get("attempts") or 0) + 1
-            if group[0]["attempts"] >= MAX_ATTEMPTS:
+            n = int(group[0].get("attempts") or 0) + 1
+            if n >= MAX_ATTEMPTS:
                 lines.append(f"⚠ verification failed {MAX_ATTEMPTS}x · {ident} · post "
                              f"{group[0]['post_id']} ({len(group)} copies) · check by hand")
                 stats["failed"] += 1
+                done.update(key(g) for g in group)
             else:
-                remaining += group
+                attempts.update({key(g): n for g in group})
             continue
         stats["groups"] += 1
+        done.update(key(g) for g in group)
         v, conf = verdict["verdict"], verdict["confidence"]
         copies = f" (+{len(group) - 1} copies)" if len(group) > 1 else ""
         url = ev["post"].get("url") or "no saved link"
+        mark = MARK.get(v, MARK["unclear"])
         if v in ("own post", "different car") and conf >= cfg["min_confidence"]:
-            applied, shown = "reviewed", v
+            applied = "reviewed"
             if not dry_run:
                 _append_reviewed([{"identifier": ident, "post_id": g["post_id"], "verdict": v,
                                    "why_it_hit": g.get("why"),
@@ -377,9 +642,18 @@ def run(conn, watches=None, dry_run: bool = False) -> dict:
                                    "reviewed": today, "reviewed_by": "claude-auto"} for g in group])
             stats["reviewed"] += len(group)
         elif v == "possible sighting":
-            applied, shown = "lead", v
+            applied = "lead"
             stats["leads"] += 1
+            # a watch that already has a live lead gets a line, not a second card
+            known = next((e for e in leads if e["identifier"] == ident and _kind(e) == "lead"
+                          and _is_live(e, rrows)), None)
+            if known:
+                applied = "lead (new source)"
+                mark = "➕ NEW SOURCE for a known lead"
             if not dry_run:
+                remember_lead(leads, ident, ctx, [g["post_id"] for g in group], "verifier",
+                              conf, verdict["reason"], kind="lead", note=watch.get("note") or "")
+            if not dry_run and not known:
                 hit = {"post_id": group[0]["post_id"], "why": group[0].get("why"),
                        "kind": group[0].get("kind")}
                 try:
@@ -390,9 +664,14 @@ def run(conn, watches=None, dry_run: bool = False) -> dict:
                 except Exception as e:
                     log(f"lead card failed: {e}")
         else:                                       # unclear, or not confident enough
-            applied, shown = "unclear", "unclear"
+            applied = "unclear"
             stats["unclear"] += 1
-        lines.append(f"{MARK[shown]} · {ident} · post {group[0]['post_id']}{copies} · "
+            mark = MARK["unclear"]
+            if not dry_run:                         # told once; copies stay quiet
+                remember_lead(leads, ident, ctx, [g["post_id"] for g in group], "verifier",
+                              conf, f"{v}: {verdict['reason']}", kind="unclear",
+                              note=watch.get("note") or "")
+        lines.append(f"{mark} · {ident} · post {group[0]['post_id']}{copies} · "
                      f"{v} conf {conf:.2f}\n   {verdict['reason']}\n   {url}")
         log(f"{applied}: {ident} post {group[0]['post_id']} x{len(group)} -> {v} ({conf:.2f}) "
             f"{verdict['reason'][:120]}")
@@ -400,19 +679,30 @@ def run(conn, watches=None, dry_run: bool = False) -> dict:
             _record(group, verdict, ev, applied)
 
     if not dry_run:
-        save_queue(remaining)
+        save_leads(leads)
+        # Re-read the queue: another process may have QUEUED hits while this run
+        # was reading. Writing back the list loaded at the start would drop them.
+        now_q = [i for i in load_queue() if key(i) not in done]
+        for i in now_q:
+            if key(i) in attempts:
+                i["attempts"] = attempts[key(i)]
+        save_queue(now_q)
     if lines:
         head = f"CarHunt verification · {stats['groups']} hit group(s) read"
         if dry_run:
             head += " · DRY RUN"
         if stats["skipped"]:
             head += f" · {stats['skipped']} more queued for the next run"
+        if stats["known"]:
+            head += f" · {stats['known']} repeat copies of entries already reported, not re-read"
         text = head + "\n\n" + "\n\n".join(lines)
         if dry_run:
             print(text)
         else:
             ok = notify.send_telegram(text)
             log(f"summary telegram {'sent' if ok else 'NOT sent'}: {stats}")
+    elif stats["known"] and not dry_run:
+        log(f"nothing to send: {stats}")
     return stats
 
 
@@ -680,8 +970,21 @@ def _main(argv) -> int:
                     help="read the queued leads on the family's own car (advice only)")
     ap.add_argument("--queue-post", type=int, metavar="POST_ID",
                     help="queue one post as a lead on the family's car, then --target reads it")
+    ap.add_argument("--mark-lead", nargs=2, metavar=("IDENT", "POST_ID"),
+                    help="remember a lead a human opened: its copies are not re-read or auto-dismissed")
+    ap.add_argument("--seed-leads", action="store_true",
+                    help="rebuild data/verify_leads.json from the verdict history")
     a = ap.parse_args(argv)
     conn = db.connect()
+    if a.seed_leads:
+        print("lead entries added:", seed_leads(conn), "· total:", len(load_leads()))
+        return 0
+    if a.mark_lead:
+        ident, pid = a.mark_lead[0], int(a.mark_lead[1])
+        hit = next((h for h in watchlib.load_raw_hits().get(ident, []) if int(h["post_id"]) == pid), None)
+        e = mark_lead(conn, ident, pid, (hit or {}).get("why") or "")
+        print(json.dumps(e, ensure_ascii=False, indent=1))
+        return 0
     if a.queue_post:
         row = conn.execute("SELECT json_extract(verdict, '$.identifier_hit'), "
                            "json_extract(verdict, '$.identifier_source') FROM posts WHERE id = ?",
