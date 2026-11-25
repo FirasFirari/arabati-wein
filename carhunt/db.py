@@ -350,6 +350,34 @@ _INSERT_VEHICLE = (
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 
 
+ALTERNATES_MAX = 3      # up to this many numbers in one field = one car written several ways
+
+
+def expand_entry(e: dict) -> list[dict]:
+    """One row per identifier when a lane put several in one field.
+
+    `norm_chassis` glues "A, B" into a number written nowhere, so neither A nor
+    B could be found and a fragment straddling the join produced a false watch
+    hit (2026-11-25). Up to ALTERNATES_MAX numbers are read as ONE car written
+    several ways ("0538224 او 500506690"): every row keeps the car's other
+    fields, plate included. More than that is a list returned as one vehicle:
+    nothing says which plate belongs to which chassis, so each chassis and each
+    plate gets its own row and they are not paired.
+    """
+    from .normalize import split_chassis, split_plates
+
+    cs, ps = split_chassis(e.get("chassis")), split_plates(e.get("plate"))
+    if not cs and not ps:
+        return [e]
+    if len(cs) <= ALTERNATES_MAX and len(ps) <= ALTERNATES_MAX and not (cs and ps):
+        if cs:
+            return [dict(e, chassis=c) for c in cs]
+        return [dict(e, plate=p) for p in ps]
+    out = [dict(e, chassis=c, plate=None) for c in (cs or ([e["chassis"]] if e.get("chassis") else []))]
+    out += [dict(e, chassis=None, plate=p) for p in (ps or ([e["plate"]] if e.get("plate") else []))]
+    return out
+
+
 def _vehicle_rows(post_id: int, entries: list[dict]) -> list[tuple]:
     """Row tuples, built OUTSIDE the write lock (normalising is not free).
 
@@ -360,6 +388,7 @@ def _vehicle_rows(post_id: int, entries: list[dict]) -> list[tuple]:
     from .normalize import norm_chassis, norm_plate
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    entries = [x for e in entries for x in expand_entry(e)]
     return [
         (post_id, e.get("make"), e.get("model"), e.get("color"),
          str(e.get("year") or "") or None,
