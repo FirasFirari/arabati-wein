@@ -425,6 +425,25 @@ def load_reviewed() -> set[tuple[str, int]]:
             if r.get("identifier") and r.get("post_id") is not None}
 
 
+CLOSED_JSON = DATA_DIR / "watch_closed.json"
+
+
+def load_closed() -> dict[str, dict]:
+    """Watches whose story is over (the owner has the vehicle back), keyed by
+    the identifier exactly as registered.
+
+    `data/watch_closed.json` is a list of objects: identifier, status
+    ("recovered"), date, note. The verifier stops reading hits for these and
+    sends nothing about them. The row stays in Netlify and the report still
+    lists its hits: this file silences alerts, it does not delete a watch.
+    """
+    try:
+        rows = json.loads(CLOSED_JSON.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {r["identifier"]: r for r in rows if r.get("identifier")}
+
+
 RAW_HITS_JSON = DATA_DIR / "raw_watch_hits.json"
 
 

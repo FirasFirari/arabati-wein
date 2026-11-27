@@ -135,6 +135,74 @@ def chassis_overlap(query: str, chassis: str) -> int:
     return 0
 
 
+# --- several identifiers in one field ---------------------------------------
+# A model lane sometimes returns a whole list as ONE vehicle, its numbers
+# joined in the chassis field ("12009186, 11007652, ... " x190, post 204270),
+# or one car's alternates ("0538224 او 38224 او 500506690"). norm_chassis
+# strips the separators and glues them into a number written nowhere: none of
+# the real numbers can be found by an exact search, and a watch matched a
+# fragment that straddled two of them (2026-11-25, watch on a pickup's 20957
+# hit "...122095" + "7009822..."). So the field is split and each number gets
+# its own row (db._vehicle_rows).
+#
+# Split ONLY on explicit separators. Whitespace is not one: a VIN is often
+# written "JTDBW23E 163092298" and a frame number "426250 022063".
+_ID_SEP = re.compile(r"\s*(?:[,،;|\n]|/|\\|\bor\b|(?<![ء-ي])(?:او|أو)(?![ء-ي]))\s*", re.I)
+_PLATE_SEP = re.compile(r"\s*(?:[,،;|\n]|\bor\b|(?<![ء-ي])(?:او|أو)(?![ء-ي]))\s*", re.I)
+_ID_PART = re.compile(r"^[A-Za-z0-9٠-٩۰-۹ .\-]+$")
+
+
+def split_chassis(value) -> list[str]:
+    """The separate identifiers in a chassis field, or [] when it is one
+    identifier (or cannot be split safely) and must be stored as written.
+
+    A part that is merely the tail of another part is the same car written
+    short ("244536, 660244536, 11LBR22E660244536"): only the longest is kept.
+    Parts under 4 characters cannot be searched and are dropped. Anything with
+    words or brackets in it is left alone: that is the commentary guard's job.
+    """
+    v = str(value or "").strip()
+    # the SAME number written twice, once in Arabic digits and once in Latin
+    # ("٥٥٢١٧٧٣١٨٤١٥ - 552177318415"): glued, it is the number doubled
+    twice = [t for t in re.split(r"[\s\-–—]+", v) if t]
+    if len(twice) == 2 and _ID_PART.match(twice[0]) and _ID_PART.match(twice[1]):
+        a, b = norm_chassis(twice[0]), norm_chassis(twice[1])
+        arabic = [bool(re.search(r"[٠-٩۰-۹]", t)) for t in twice]
+        if a == b and len(a) >= 4 and arabic[0] != arabic[1]:
+            return [a]
+    parts = [p.strip() for p in _ID_SEP.split(v) if p and p.strip()]
+    if len(parts) < 2 or not all(_ID_PART.match(p) for p in parts):
+        return []
+    norms, keep = [], []
+    for p in parts:
+        n = norm_chassis(p)
+        if len(n) >= 4 and n not in norms:
+            norms.append(n)
+            keep.append(p)
+    out = [p for p, n in zip(keep, norms)
+           if not any(m != n and m.endswith(n) for m in norms)]
+    return out if len(out) >= 2 or (out and len(parts) >= 2) else []
+
+
+def split_plates(value) -> list[str]:
+    """The separate plates in a plate field ("65669 خ1, 40367 خ1, ..."), or []
+    when it holds one. A slash is NOT a separator here: "خ 5 / 42471" is one
+    plate. Parts must each carry a serial of 3+ digits and the serials differ."""
+    v = str(value or "").strip()
+    parts = [p.strip(" /\\") for p in _PLATE_SEP.split(v) if p and p.strip(" /\\")]
+    if len(parts) < 2:
+        return []
+    serials = [norm_plate(p) for p in parts]
+    if any(len(s) < 3 for s in serials) or len(set(serials)) < 2:
+        return []
+    seen, out = set(), []
+    for p, s in zip(parts, serials):
+        if s not in seen:
+            seen.add(s)
+            out.append(p)
+    return out
+
+
 # --- commentary guard -------------------------------------------------------
 # Agents write explanations into identifier fields. Because norm_* strips
 # non-alphanumerics, that commentary is folded into the value: one row with
