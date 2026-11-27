@@ -69,6 +69,33 @@ def grounded(value, runs: set[str]) -> bool:
 
 DOUBTFUL_OCR = "read from a photo whose OCR reading is disputed or unverified"
 
+# A list of OWNERS' loss reports, published by a broker who holds the owners'
+# numbers: "if you found any of these cars, message me privately and I will
+# hand you the owner's number". Every number in it is a car somebody is still
+# looking for. The lanes read it as a recovery list (the layout is identical),
+# and until 2026-11-27 its cars were published as found: 8,594 rows from 149
+# copies of one publisher's «البلاغات اليوميه» lists.
+LOSS_LIST = re.compile(
+    r"تعال\s+(?:ال)?خاص[^\n]{0,60}?[أا](?:سلمك|رسلك)\s+(?:رقم\s+)?المالك")
+LOSS_NOTE = "بلاغ فقدان من صاحب العربة، ليست مشاهدة"
+LOSS_STATUS = "unknown"       # the registry has no published "lost" status
+
+
+def is_loss_list(text) -> bool:
+    return bool(LOSS_LIST.search(_fold(text)))
+
+
+def mark_loss_report(e: dict) -> bool:
+    """Relabel one entry of a loss list IN PLACE. True if anything changed."""
+    desc = (e.get("description") or "").strip()
+    noted = desc.startswith(LOSS_NOTE)
+    if e.get("status") == LOSS_STATUS and noted:
+        return False
+    e["status"] = LOSS_STATUS
+    if not noted:
+        e["description"] = f"{LOSS_NOTE}: {desc}" if desc else LOSS_NOTE
+    return True
+
 
 def check_entries(entries: list[dict], text: str, photos_unread: bool,
                   doubtful_text: str = "") -> list[str]:
@@ -79,12 +106,17 @@ def check_entries(entries: list[dict], text: str, photos_unread: bool,
     with a low_confidence reason instead. A value found ONLY in `doubtful_text`
     (OCR where two readers disagreed, or a VIN read nobody has checked) is kept
     and marked the same way: until 2026-11 such rows carried no flag at all.
-    Prose in an identifier field is stripped. Returns a description of every
-    change, for the caller's log.
+    Prose in an identifier field is stripped. In a list of owners' loss reports
+    (`is_loss_list`) no row is a sighting, whatever status the lane gave it.
+    Returns a description of every change, for the caller's log.
     """
     runs = source_runs(text)
     doubtful = source_runs(doubtful_text) if doubtful_text else set()
     changes = []
+    if is_loss_list(text):
+        n = sum(mark_loss_report(e) for e in entries)
+        if n:
+            changes.append(f"status: loss-report list, {n} row(s) marked not a sighting")
     for e in entries:
         for f in ("chassis", "plate"):
             if e.get(f) and has_prose(e[f]):
